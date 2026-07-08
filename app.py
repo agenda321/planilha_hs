@@ -6,33 +6,43 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from flask_cors import CORS
 
+print("🚀 1. Iniciando importações...")
+sys.stdout.flush()
+
 # ===== TENTA IMPORTAR A ESCALA =====
+print("🚀 2. Tentando importar escala...")
+sys.stdout.flush()
 try:
     from escala import ESCALA_MENSAL
-    print("✅ Escala carregada com sucesso.")
+    print("✅ 2.1 Escala carregada com sucesso.")
 except ImportError as e:
-    print(f"❌ Erro ao importar escala: {e}")
+    print(f"❌ 2.1 Erro ao importar escala: {e}")
     ESCALA_MENSAL = {}
+sys.stdout.flush()
 
 # ===== INICIALIZAÇÃO DO FLASK =====
+print("🚀 3. Inicializando Flask...")
+sys.stdout.flush()
 app = Flask(__name__)
 CORS(app)
 
-# ===== CONFIGURAÇÃO DO BANCO DE DADOS (SUPABASE) =====
+# ===== CONFIGURAÇÃO DO BANCO =====
+print("🚀 4. Configurando banco de dados...")
+sys.stdout.flush()
 database_url = os.environ.get("DATABASE_URL")
 if not database_url:
-    print("❌ DATABASE_URL não definida. Usando fallback local.")
+    print("❌ 4.1 DATABASE_URL não definida")
     database_url = "postgresql://user:password@localhost/mydatabase"
 else:
-    # Converte postgres:// para postgresql:// (se necessário)
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
-    # Garante sslmode=require
-    if "?" not in database_url:
-        database_url += "?sslmode=require"
-    elif "sslmode" not in database_url:
-        database_url += "&sslmode=require"
-    print(f"✅ DATABASE_URL configurada: {database_url[:30]}...")
+    print(f"✅ 4.1 DATABASE_URL encontrada: {database_url[:30]}...")
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+if "?" not in database_url:
+    database_url += "?sslmode=require"
+elif "sslmode" not in database_url:
+    database_url += "&sslmode=require"
+print(f"✅ 4.2 URL configurada: {database_url[:30]}...")
+sys.stdout.flush()
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -40,16 +50,16 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
     "pool_recycle": 300,
 }
-
 db = SQLAlchemy(app)
+print("✅ 4.3 SQLAlchemy inicializado")
+sys.stdout.flush()
 
-# ===== SENHAS DE EDIÇÃO =====
+# ===== SENHAS =====
+print("🚀 5. Configurando constantes...")
+sys.stdout.flush()
 EDIT_PASSWORD = os.environ.get("EDIT_PASSWORD", "Emerson")
 EDIT_PASSWORD_2 = os.environ.get("EDIT_PASSWORD_2", "Bispo")
-
-# ===== CONSTANTES =====
 CODIGOS_DISPONIVEIS = ["VO", "CQ", "RE", "SO", "EA", "TR", "TN"]
-
 CORES = {
     "DM": "laranja",
     "CM": "laranja_claro",
@@ -64,10 +74,11 @@ CORES = {
     "TN": "azul_claro",
     "CQ": "azul_medio"
 }
-
 PILOTOS_EXCLUIDOS = []
 
 # ===== MODELOS =====
+print("🚀 6. Definindo modelos...")
+sys.stdout.flush()
 class Pilot(db.Model):
     __tablename__ = "pilot"
     id = db.Column(db.Integer, primary_key=True)
@@ -95,7 +106,12 @@ class StatusOverride(db.Model):
     status = db.Column(db.String(10), nullable=False)
     pilot = db.relationship("Pilot", backref=db.backref("status_overrides", lazy=True))
 
+print("✅ 6.1 Modelos definidos.")
+sys.stdout.flush()
+
 # ===== FUNÇÕES AUXILIARES =====
+print("🚀 7. Definindo funções auxiliares...")
+sys.stdout.flush()
 def normalizar_status(status):
     if status is None or status == "" or status == " ":
         return "VO"
@@ -122,6 +138,8 @@ def logs_por_piloto(logs):
 # ============================
 # ROTAS
 # ============================
+print("🚀 8. Definindo rotas...")
+sys.stdout.flush()
 
 @app.route("/")
 def landing():
@@ -310,6 +328,8 @@ def reset_banco():
 
 # ===== POPULAÇÃO INICIAL DO BANCO =====
 def povoar_dados_iniciais():
+    print("🚀 9. Populando dados iniciais...")
+    sys.stdout.flush()
     grupos = {
         "Andre": "CESSNA 206/210", "Andrade": "CESSNA 206/210", "Luiz": "CESSNA 206/210",
         "Adelio": "CESSNA 206/210", "Amarildo": "CESSNA 206/210", "Cleverson": "CESSNA 206/210",
@@ -399,9 +419,13 @@ def povoar_dados_iniciais():
             for d_num, h_val in dias_dados.items():
                 db.session.add(FlightLog(pilot_id=p_obj.id, day=d_num, month=m_atual, year=y_atual, hours=float(h_val)))
     db.session.commit()
+    print("✅ 9.1 Dados iniciais populados.")
+    sys.stdout.flush()
 
 # ===== INICIALIZAÇÃO DO BANCO COM RETRY =====
 def init_db():
+    print("🚀 10. Inicializando banco de dados...")
+    sys.stdout.flush()
     max_retries = 5
     for attempt in range(max_retries):
         try:
@@ -413,17 +437,20 @@ def init_db():
                 else:
                     print(f"✅ Banco já possui {Pilot.query.count()} pilotos.")
                 print("✅ Banco conectado e inicializado com sucesso.")
+                sys.stdout.flush()
                 return
         except Exception as e:
             print(f"⚠️ Tentativa {attempt+1}/{max_retries} falhou: {e}")
+            sys.stdout.flush()
             if attempt < max_retries - 1:
                 time.sleep(5)
             else:
                 print("❌ Não foi possível conectar ao banco após várias tentativas.")
-                # Não levanta exceção para não quebrar o app
+                sys.stdout.flush()
 
 # ===== INICIALIZAÇÃO =====
-print("🚀 Iniciando aplicação...")
+print("🚀 11. Iniciando aplicação...")
+sys.stdout.flush()
 init_db()
 
 if __name__ == "__main__":
