@@ -6,7 +6,7 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from flask_cors import CORS
 
-print("🚀 1. Iniciando aplicação...")
+print("🚀 Iniciando aplicação...")
 sys.stdout.flush()
 
 # ===== TENTA CARREGAR A ESCALA =====
@@ -18,26 +18,51 @@ except Exception as e:
     ESCALA_MENSAL = {}
 sys.stdout.flush()
 
-# ===== INICIALIZAÇÃO DO FLASK =====
+# ===== FLASK =====
 app = Flask(__name__)
 CORS(app)
 print("✅ Flask e CORS configurados")
 sys.stdout.flush()
 
-# ===== CONFIGURAÇÃO DO BANCO (SUPABASE) =====
+# ===== BANCO DE DADOS (SUPABASE CORRIGIDO) =====
 database_url = os.environ.get("DATABASE_URL")
 if not database_url:
     print("❌ DATABASE_URL não definida! Usando SQLite para teste.")
-    sys.stdout.flush()
     database_url = "sqlite:///test.db"
 else:
+    # Converte postgres:// para postgresql://
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
-    if "?" not in database_url:
-        database_url += "?sslmode=require&connect_timeout=30"
-    elif "sslmode" not in database_url:
-        database_url += "&sslmode=require&connect_timeout=30"
-    print(f"✅ DATABASE_URL configurada: {database_url[:60]}...")
+    
+    # ===== CORREÇÃO PARA SUPABASE =====
+    if "supabase" in database_url.lower():
+        # Extrai o ID do projeto (subdomínio)
+        import re
+        match = re.search(r'://[^@]+@([^.]+)\.supabase\.co', database_url)
+        if match:
+            project_id = match.group(1)
+            print(f"🔑 Projeto Supabase detectado: {project_id}")
+            # Adiciona sslmode e options se não existirem
+            if "?" not in database_url:
+                database_url += f"?sslmode=require&options=project%3D{project_id}"
+            elif "sslmode" not in database_url:
+                database_url += f"&sslmode=require&options=project%3D{project_id}"
+            elif "options" not in database_url:
+                database_url += f"&options=project%3D{project_id}"
+        else:
+            print("⚠️ Não foi possível extrair o ID do projeto Supabase. Adicionando fallback.")
+            if "?" not in database_url:
+                database_url += "?sslmode=require"
+            elif "sslmode" not in database_url:
+                database_url += "&sslmode=require"
+    else:
+        # Para outros bancos (ex: Render PostgreSQL), apenas sslmode se necessário
+        if "?" not in database_url:
+            database_url += "?sslmode=require"
+        elif "sslmode" not in database_url:
+            database_url += "&sslmode=require"
+    
+    print(f"✅ DATABASE_URL configurada: {database_url[:80]}...")
     sys.stdout.flush()
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
@@ -57,7 +82,7 @@ db = SQLAlchemy(app)
 print("✅ SQLAlchemy configurado")
 sys.stdout.flush()
 
-# ===== SENHAS =====
+# ===== CONSTANTES =====
 EDIT_PASSWORD = os.environ.get("EDIT_PASSWORD", "Emerson")
 EDIT_PASSWORD_2 = os.environ.get("EDIT_PASSWORD_2", "Bispo")
 CODIGOS_DISPONIVEIS = ["VO", "CQ", "RE", "SO", "EA", "TR", "TN"]
@@ -76,9 +101,6 @@ CORES = {
     "CQ": "azul_medio"
 }
 PILOTOS_EXCLUIDOS = []
-
-print("✅ Constantes definidas")
-sys.stdout.flush()
 
 # ===== MODELOS =====
 class Pilot(db.Model):
@@ -111,7 +133,7 @@ class StatusOverride(db.Model):
 print("✅ Modelos definidos")
 sys.stdout.flush()
 
-# ===== FUNÇÕES AUXILIARES =====
+# ===== FUNÇÕES =====
 def normalizar_status(status):
     if status is None or status == "" or status == " ":
         return "VO"
@@ -135,12 +157,7 @@ def logs_por_piloto(logs):
         result[log.pilot.name][(log.month, log.day)] = log.hours
     return result
 
-print("✅ Funções auxiliares definidas")
-sys.stdout.flush()
-
-# ============================
-# ROTAS
-# ============================
+# ===== ROTAS =====
 @app.route("/")
 def landing():
     return app.send_static_file('index.html')
@@ -170,8 +187,9 @@ def get_data():
         month = request.args.get("month", default=datetime.now().month, type=int)
         year = request.args.get("year", default=datetime.now().year, type=int)
         pilots = Pilot.query.filter(Pilot.name.notin_(PILOTOS_EXCLUIDOS)).all()
-
         logs_current = FlightLog.query.filter_by(month=month, year=year).all()
+        
+        # Logs adjacentes para streak
         prev_month = month - 1 if month > 1 else 12
         prev_year = year if month > 1 else year - 1
         logs_prev = FlightLog.query.filter_by(month=prev_month, year=prev_year).all()
@@ -179,18 +197,14 @@ def get_data():
         next_year = year if month < 12 else year + 1
         logs_next = FlightLog.query.filter_by(month=next_month, year=next_year).all()
 
-        logs_current_map = logs_por_piloto(logs_current)
-        logs_prev_map = logs_por_piloto(logs_prev)
-        logs_next_map = logs_por_piloto(logs_next)
-
         logs_adjacent = {}
-        for pilot_name in set(logs_current_map) | set(logs_prev_map) | set(logs_next_map):
+        for pilot_name in set(logs_por_piloto(logs_current)) | set(logs_por_piloto(logs_prev)) | set(logs_por_piloto(logs_next)):
             logs_adjacent[pilot_name] = {}
-            for (m, d), h in logs_prev_map.get(pilot_name, {}).items():
+            for (m, d), h in logs_por_piloto(logs_prev).get(pilot_name, {}).items():
                 logs_adjacent[pilot_name][(m, d)] = h
-            for (m, d), h in logs_current_map.get(pilot_name, {}).items():
+            for (m, d), h in logs_por_piloto(logs_current).get(pilot_name, {}).items():
                 logs_adjacent[pilot_name][(m, d)] = h
-            for (m, d), h in logs_next_map.get(pilot_name, {}).items():
+            for (m, d), h in logs_por_piloto(logs_next).get(pilot_name, {}).items():
                 logs_adjacent[pilot_name][(m, d)] = h
 
         result = {
@@ -221,14 +235,11 @@ def save_data():
         data = request.get_json()
         if data.get("password") not in [EDIT_PASSWORD, EDIT_PASSWORD_2]:
             return jsonify({"success": False}), 401
-
         month = data.get("month")
         year = data.get("year")
         if not month or not year:
             return jsonify({"success": False, "erro": "Mês e ano são obrigatórios"}), 400
-
         month = int(month); year = int(year)
-
         for pilot_name, days in data.get("logs", {}).items():
             pilot = Pilot.query.filter_by(name=pilot_name).first()
             if not pilot:
@@ -255,7 +266,6 @@ def get_available_commanders(day_index):
         month = request.args.get("month", default=datetime.now().month, type=int)
         year = request.args.get("year", default=datetime.now().year, type=int)
         dia_solicitado = day_index + 1
-
         for pilot in pilots:
             escala = obtener_escala_dinamica(pilot, month, year)
             if not escala:
@@ -276,7 +286,6 @@ def get_available_commanders(day_index):
                     "color": cor,
                     "horas_totais": horas_acumuladas
                 })
-
         available = {}
         for grupo, lista_pilotos in pilotos_com_horas.items():
             available[grupo] = sorted(lista_pilotos, key=lambda x: x["horas_totais"], reverse=True)
@@ -294,15 +303,12 @@ def update_status():
         new_status = data.get("status")
         month = data.get("month")
         year = data.get("year")
-
         if not month or not year or not pilot_name or day is None or not new_status:
             return jsonify({"success": False, "erro": "Dados incompletos"}), 400
-
         month = int(month); year = int(year)
         pilot = Pilot.query.filter_by(name=pilot_name).first()
         if not pilot:
             return jsonify({"success": False, "erro": "Piloto não encontrado"}), 404
-
         override = StatusOverride.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
         if override:
             override.status = new_status
@@ -324,9 +330,6 @@ def reset_banco():
         return "Banco reiniciado e dados da frota atualizados com sucesso!"
     except Exception as e:
         return f"Erro: {e}", 500
-
-print("✅ Rotas definidas")
-sys.stdout.flush()
 
 # ===== POPULAÇÃO INICIAL =====
 def povoar_dados_iniciais():
@@ -422,7 +425,7 @@ def povoar_dados_iniciais():
     print("✅ Dados iniciais populados")
     sys.stdout.flush()
 
-# ===== INICIALIZAÇÃO DO BANCO COM RETRY =====
+# ===== INICIALIZAÇÃO =====
 def init_db():
     print("🔄 Tentando criar tabelas...")
     sys.stdout.flush()
