@@ -221,12 +221,14 @@ ESCALA_MENSAL = {
     ]
 }
 
-# Grupos para separação correta no relatório
+# =========================================================================
+# LISTAS AUXILIARES (para relatórios)
+# =========================================================================
 LISTA_COMANDANTES = [
-    "Adelio", "Otto", "Andre", "Cleiton", "Cleverson", "Dany", "Edson", "Felipe", 
-    "Frank", "Gabriel", "Hazafe", "Igorh", "Amarildo", "Joao", "Dayvid", "Leandro", 
-    "Lindomar", "Lucas", "Luiz", "Andrade", "Mathias", "Milton", "Pascoal", "Paulo", 
-    "Perisson", "Renan", "Roberto", "Ronalldo", "Rui", "Sergio", "Victor", "Bento", 
+    "Adelio", "Otto", "Andre", "Cleiton", "Cleverson", "Dany", "Edson", "Felipe",
+    "Frank", "Gabriel", "Hazafe", "Igorh", "Amarildo", "Joao", "Dayvid", "Leandro",
+    "Lindomar", "Lucas", "Luiz", "Andrade", "Mathias", "Milton", "Pascoal", "Paulo",
+    "Perisson", "Renan", "Roberto", "Ronalldo", "Rui", "Sergio", "Victor", "Bento",
     "Wellber", "Yago"
 ]
 
@@ -237,27 +239,25 @@ def obter_disponiveis_no_dia(dia):
     if dia < 1 or dia > 31:
         print("Erro: O dia deve estar entre 1 e 31.")
         return
-    
-    # O index no Python começa em 0, então o dia 1 é o índice 0
+
     indice_dia = dia - 1
-    
     comandantes_so = []
     copilotos_so = []
-    
+
     for piloto, dias in ESCALA_MENSAL.items():
         if dias[indice_dia] == "SO":
             if piloto in LISTA_COMANDANTES:
                 comandantes_so.append(piloto)
             elif piloto in LISTA_COPILOTOS:
                 copilotos_so.append(piloto)
-                
+
     print(f"=== TRIPULAÇÃO EM SOBREAVISO (SO) - DIA {dia:02d}/07/2026 ===")
     print(f"\n👨‍✈️ COMANDANTES ({len(comandantes_so)}):")
     if comandantes_so:
         print(", ".join(sorted(comandantes_so)))
     else:
         print("Nenhum comandante disponível.")
-        
+
     print(f"\n📋 COPILOTOS ({len(copilotos_so)}):")
     if copilotos_so:
         print(", ".join(sorted(copilotos_so)))
@@ -265,6 +265,10 @@ def obter_disponiveis_no_dia(dia):
         print("Nenhum copiloto disponível.")
     print("=" * 55)
 
-# --- EXEMPLO DE USO ---
-# Altere o número abaixo para testar outros dias da escala
-obter_disponiveis_no_dia(8)
+
+# =========================================================================
+# CORREÇÃO: a chamada de teste só executa se o script for rodado diretamente
+# =========================================================================
+if __name__ == "__main__":
+    # Exemplo de uso – você pode alterar o dia para testar outros dias da escala
+    obter_disponiveis_no_dia(8)
