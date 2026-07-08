@@ -4,35 +4,36 @@ import time
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 
-print("🚀 1. Iniciando...")
+print("🚀 1. Iniciando aplicação...")
 sys.stdout.flush()
 
 app = Flask(__name__)
 
-# Tenta carregar a escala
+# ===== TENTA CARREGAR A ESCALA =====
 try:
     from escala import ESCALA_MENSAL
-    print("✅ Escala carregada")
+    print("✅ Escala carregada com sucesso")
 except Exception as e:
-    print(f"❌ Erro na escala: {e}")
+    print(f"❌ Erro ao carregar escala: {e}")
     ESCALA_MENSAL = {}
 sys.stdout.flush()
 
-# ===== CONFIGURAÇÃO DO BANCO (COM TIMEOUT) =====
+# ===== CONFIGURAÇÃO DO BANCO (SUPABASE COM TIMEOUT) =====
 database_url = os.environ.get("DATABASE_URL")
 if not database_url:
-    print("❌ DATABASE_URL não definida")
+    print("❌ DATABASE_URL não definida! Usando SQLite para teste.")
     sys.stdout.flush()
     database_url = "sqlite:///test.db"
 else:
+    # Converte postgres:// para postgresql://
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
     # Garante sslmode e timeout
     if "?" not in database_url:
         database_url += "?sslmode=require&connect_timeout=10"
     elif "sslmode" not in database_url:
         database_url += "&sslmode=require&connect_timeout=10"
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
-    print(f"✅ DATABASE_URL: {database_url[:40]}...")
+    print(f"✅ DATABASE_URL configurada: {database_url[:50]}...")
     sys.stdout.flush()
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
@@ -43,7 +44,6 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "connect_args": {"connect_timeout": 10}
 }
 db = SQLAlchemy(app)
-
 print("✅ SQLAlchemy configurado")
 sys.stdout.flush()
 
@@ -69,7 +69,7 @@ def init_db():
         except Exception as e:
             print(f"⚠️ Tentativa {attempt+1}/5 falhou: {e}")
             sys.stdout.flush()
-            time.sleep(3)
+            time.sleep(5)
     print("❌ Falha ao criar tabelas após 5 tentativas")
     sys.stdout.flush()
 
