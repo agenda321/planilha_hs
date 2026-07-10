@@ -197,15 +197,18 @@ def get_data():
         next_year = year if month < 12 else year + 1
         logs_next = FlightLog.query.filter_by(month=next_month, year=next_year).all()
 
+        # ===== CORREÇÃO: chaves de logs_adjacent viram string "mes-dia" em vez de tupla (mes, dia) =====
+        # jsonify() não consegue serializar dict com chave tupla; isso causava
+        # "keys must be str, int, float, bool or None, not tuple" em toda chamada a /api/data.
         logs_adjacent = {}
         for pilot_name in set(logs_por_piloto(logs_current)) | set(logs_por_piloto(logs_prev)) | set(logs_por_piloto(logs_next)):
             logs_adjacent[pilot_name] = {}
             for (m, d), h in logs_por_piloto(logs_prev).get(pilot_name, {}).items():
-                logs_adjacent[pilot_name][(m, d)] = h
+                logs_adjacent[pilot_name][f"{m}-{d}"] = h
             for (m, d), h in logs_por_piloto(logs_current).get(pilot_name, {}).items():
-                logs_adjacent[pilot_name][(m, d)] = h
+                logs_adjacent[pilot_name][f"{m}-{d}"] = h
             for (m, d), h in logs_por_piloto(logs_next).get(pilot_name, {}).items():
-                logs_adjacent[pilot_name][(m, d)] = h
+                logs_adjacent[pilot_name][f"{m}-{d}"] = h
 
         result = {
             "pilots": [{"name": p.name, "group": p.group, "full_name": p.full_name or p.name} for p in pilots],
