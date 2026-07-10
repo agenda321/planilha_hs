@@ -25,7 +25,7 @@ CORS(app)
 print("✅ Flask e CORS configurados")
 sys.stdout.flush()
 
-# ===== BANCO DE DADOS =====
+# ===== BANCO DE DADOS (SUPABASE CORRIGIDO) =====
 database_url = os.environ.get("DATABASE_URL")
 if not database_url:
     print("❌ DATABASE_URL não definida! Usando SQLite para teste.")
@@ -151,7 +151,6 @@ def logs_por_piloto(logs):
     for log in logs:
         if log.pilot.name not in result:
             result[log.pilot.name] = {}
-        # CORREÇÃO: usar string em vez de tupla
         key = f"{log.month},{log.day}"
         result[log.pilot.name][key] = log.hours
     return result
@@ -188,7 +187,6 @@ def get_data():
         pilots = Pilot.query.filter(Pilot.name.notin_(PILOTOS_EXCLUIDOS)).all()
         logs_current = FlightLog.query.filter_by(month=month, year=year).all()
 
-        # Logs adjacentes para streak
         prev_month = month - 1 if month > 1 else 12
         prev_year = year if month > 1 else year - 1
         logs_prev = FlightLog.query.filter_by(month=prev_month, year=prev_year).all()
@@ -196,7 +194,6 @@ def get_data():
         next_year = year if month < 12 else year + 1
         logs_next = FlightLog.query.filter_by(month=next_month, year=next_year).all()
 
-        # Usa a função corrigida (chaves string)
         logs_current_map = logs_por_piloto(logs_current)
         logs_prev_map = logs_por_piloto(logs_prev)
         logs_next_map = logs_por_piloto(logs_next)
