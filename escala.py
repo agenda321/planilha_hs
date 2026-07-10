@@ -1,124 +1,126 @@
 # -*- coding: utf-8 -*-
 # Escala Mensal de Folgas - Julho de 2026 - Voare Táxi Aéreo
+# REMOVIDOS: Felipe (Jabur), Tiago (Quirino)
+# Ronalldo movido para COPILOTOS (conforme solicitado)
 
 ESCALA_MENSAL = {
     # =========================================================================
-    # COMANDANTES
+    # COMANDANTES (em ordem alfabética)
     # =========================================================================
     "Adelio": [
-        "SO","SO","SO","SO","FR","SO","SO","SO","SO","SO",
-        "FR","SO","SO","SO","SO","SO","FR","FS","FS","RE",
-        "SO","SO","SO","SO","SO","SO","FR","SO","SO","SO","FR"
+        "SO","SO","SO","SO","FR","SO","SO","SO","SO","FR",
+        "SO","SO","SO","FR","SO","SO","FR","FS","FS","RE",
+        "SO","SO","SO","SO","SO","FR","SO","SO","SO","FR","SO"
     ],
-    "Otto": [
-        "SO","SO","FR","FS","FS","FE","FE","FE","FE","FE",
-        "FE","FE","FE","FE","FE","FE","FE","FE","FE","FE",
-        "FE","RE","SO","SO","SO","SO","SO","FR","SO","SO","SO"
+    "Amarildo": [
+        "FR","SO","SO","FR","SO","SO","SO","FR","SO","SO",
+        "SO","SO","FR","SO","SO","SO","FR","FS","FS","RE",
+        "SO","SO","SO","SO","SO","FR","SO","SO","SO","SO","SO"
+    ],
+    "Andrade": [
+        "SO","SO","SO","FR","SO","SO","SO","FR","SO","SO",
+        "SO","FR","SO","SO","SO","SO","FR","FS","FS","RE",
+        "SO","SO","SO","SO","FR","SO","SO","SO","SO","FR","SO"
     ],
     "Andre": [
-        "SO","SO","SO","FR","SO","SO","SO","SO","SO","SO",
-        "FR","SO","SO","SO","SO","SO","FR","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","FR","SO","SO"
+        "SO","SO","SO","FR","SO","SO","SO","SO","FR","SO",
+        "SO","SO","SO","FR","SO","SO","SO","SO","FR","SO",
+        "SO","SO","SO","FR","FS","FS","RE","SO","FR","SO","SO"
+    ],
+    "Bento": [
+        "SO","FR","SO","SO","SO","SO","FR","SO","SO","SO",
+        "SO","FR","SO","SO","SO","SO","FR","FS","FS","RE",
+        "SO","SO","SO","SO","FR","SO","SO","SO","SO","FR","SO"
     ],
     "Cleiton": [
-        "SO","SO","SO","FR","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "SO","SO","SO","FR","SO","SO","SO","FR","SO","FR",
+        "FS","FS","RE","SO","SO","SO","SO","FR","SO","SO",
+        "SO","FR","SO","SO","SO","FR","SO","SO","SO","SO","SO"
     ],
     "Cleverson": [
-        "SO","SO","SO","SO","FR","SO","SO","SO","SO","SO",
-        "SO","SO","FR","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","FR","SO","SO","SO","SO"
+        "SO","SO","SO","SO","FR","SO","SO","SO","FR","SO",
+        "SO","SO","FR","SO","SO","SO","SO","SO","FR","SO",
+        "SO","SO","SO","FR","FS","FS","RE","SO","SO","FR","SO"
+    ],
+    "Costa": [
+        "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
+        "FR","SO","SO","FR","SO","SO","SO","SO","FR","SO",
+        "SO","SO","FR","SO","SO","SO","SO","FR","SO","SO","SO"
     ],
     "Dany": [
-        "SO","SO","SO","SO","FR","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","FR","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "SO","SO","SO","FR","SO","SO","SO","FR","SO","SO",
+        "SO","SO","FR","SO","SO","SO","FR","FS","FS","RE",
+        "SO","SO","FR","SO","SO","SO","FR","SO","SO","SO","SO"
+    ],
+    "Dayvid": [
+        "SO","SO","FR","FS","FS","RE","SO","SO","SO","FR",
+        "SO","SO","SO","FR","SO","SO","SO","SO","FR","SO",
+        "SO","SO","FR","SO","SO","SO","SO","FR","SO","SO","SO"
     ],
     "Edson": [
         "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
-        "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
-        "SO","RE","SO","SO","SO","SO","SO","SO","FR","SO","SO"
-    ],
-    "Felipe": [
-        "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
-        "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
-        "SO","SO","SO","SO","FR","FS","FS","RE","SO","SO","SO"
+        "FR","SO","SO","SO","SO","FR","SO","SO","SO","SO",
+        "FR","SO","SO","SO","FR","SO","SO","SO","FR","SO","SO"
     ],
     "Frank": [
         "SO","SO","FR","FS","FS","FE","FE","FE","FE","FE",
         "FE","FE","FE","FE","FE","FE","FE","FE","FE","FE",
-        "FE","FE","FE","FE","FE","FE","FE","FE","FE","FE","RE"
+        "RE","SO","SO","SO","SO","SO","FR","SO","SO","SO","SO"
     ],
     "Gabriel": [
-        "SO","SO","SO","SO","FR","SO","SO","SO","SO","SO",
-        "SO","SO","FR","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","FR","SO","SO","SO","SO"
+        "SO","SO","SO","SO","FR","SO","SO","SO","SO","FR",
+        "FS","FS","RE","SO","SO","SO","FR","SO","SO","SO",
+        "FR","SO","SO","SO","FR","SO","SO","SO","FR","SO","SO"
     ],
     "Hazafe": [
-        "FR","SO","SO","SO","FR","SO","SO","SO","SO","SO",
-        "SO","FR","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","FR","SO","SO","SO","SO"
+        "FR","SO","SO","SO","FR","SO","SO","SO","SO","FR",
+        "FS","FS","RE","SO","SO","SO","SO","SO","FR","SO",
+        "SO","SO","SO","FR","SO","SO","SO","FR","SO","SO","SO"
     ],
     "Igorh": [
         "SO","SO","FR","SO","SO","SO","SO","SO","SO","FR",
-        "SO","SO","SO","SO","SO","SO","FR","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","FR","SO","SO"
-    ],
-    "Amarildo": [
-        "FR","SO","SO","FR","SO","SO","SO","SO","SO","FR",
-        "SO","SO","SO","FR","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","FR","SO","SO","SO","SO"
+        "FS","FS","FE","FE","FE","FE","FE","FE","FE","FE",
+        "FE","FE","FE","FE","FE","FE","FE","RE","SO","SO","SO"
     ],
     "Joao": [
-        "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
-        "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
-    ],
-    "Dayvid": [
-        "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
-        "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
-        "SO","SO","SO","SO","FR","FS","FS","RE","SO","SO","SO"
+        "SO","SO","FR","FS","FS","RE","SO","SO","SO","FR",
+        "SO","SO","SO","SO","FR","SO","SO","SO","FR","SO",
+        "SO","SO","SO","FR","SO","SO","SO","SO","FR","SO","SO"
     ],
     "Leandro": [
         "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
-        "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
-        "SO","SO","SO","SO","FR","FS","FS","RE","SO","SO","SO"
+        "FR","SO","SO","SO","SO","FR","SO","SO","SO","FR",
+        "SO","SO","SO","FR","SO","SO","SO","SO","FR","SO","SO"
     ],
     "Lindomar": [
-        "SO","FR","SO","SO","SO","FR","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "SO","FR","SO","SO","SO","FR","SO","SO","SO","FR",
+        "FS","FS","RE","SO","SO","SO","SO","FR","SO","SO",
+        "SO","SO","FR","SO","SO","SO","FR","SO","SO","SO","SO"
     ],
     "Lucas": [
-        "FR","SO","SO","SO","SO","SO","SO","SO","FR","SO",
-        "SO","SO","SO","SO","SO","SO","FR","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","FR","SO","SO"
+        "FR","SO","SO","SO","SO","SO","FR","SO","SO","SO",
+        "SO","SO","FR","SO","SO","SO","SO","SO","FR","SO",
+        "SO","SO","SO","FR","FS","FS","RE","SO","SO","SO","FR"
     ],
     "Luiz": [
-        "SO","SO","FR","SO","SO","SO","SO","SO","SO","SO",
-        "FR","SO","SO","SO","SO","SO","FR","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
-    ],
-    "Andrade": [
-        "SO","SO","SO","FR","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "SO","SO","FR","SO","SO","SO","SO","FR","SO","SO",
+        "SO","FR","SO","SO","SO","SO","SO","FR","SO","SO",
+        "SO","SO","SO","FR","FS","FS","RE","SO","SO","SO","FR"
     ],
     "Mathias": [
-        "SO","FR","SO","SO","SO","SO","SO","SO","SO","FR",
-        "SO","SO","SO","SO","SO","SO","FR","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "SO","FR","SO","SO","SO","SO","FR","SO","SO","SO",
+        "SO","FR","SO","SO","SO","SO","SO","FR","SO","SO",
+        "SO","SO","SO","FR","FS","FS","FR","RE","SO","SO","SO"
     ],
     "Milton": [
-        "SO","SO","SO","SO","FR","SO","SO","SO","SO","SO",
-        "SO","SO","FR","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","FR","SO","SO"
+        "SO","SO","SO","SO","FR","SO","SO","SO","SO","FR",
+        "SO","SO","SO","FR","SO","SO","FR","FS","FS","RE",
+        "SO","SO","SO","FR","SO","SO","SO","SO","FR","SO","SO"
     ],
     "Pascoal": [
-        "SO","SO","SO","FR","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "SO","SO","SO","FR","SO","SO","SO","FR","SO","SO",
+        "SO","SO","FR","SO","SO","SO","SO","FR","SO","SO",
+        "SO","SO","SO","FR","FS","FS","RE","SO","SO","FR","SO"
     ],
     "Paulo": [
         "FE","FE","FE","FE","FE","FE","FE","FE","FE","FE",
@@ -126,116 +128,114 @@ ESCALA_MENSAL = {
         "FE","FE","FE","FE","FE","FE","FE","FE","FE","FE","RE"
     ],
     "Perisson": [
-        "FE","FE","FE","FE","FE","FE","FE","FE","FE","FE",
-        "FE","FE","FE","FE","FE","FE","FE","FE","FE","FE",
-        "FE","FE","FE","FE","FE","FE","FE","FE","FE","FE","FE"
+        "FE","FE","FE","FE","FE","FE","FE","FE","FE","FR",
+        "FS","FS","RE","SO","SO","SO","FR","SO","SO","SO",
+        "FR","SO","SO","FR","SO","SO","FR","SO","SO","SO","FR"
     ],
     "Renan": [
-        "SO","SO","SO","FR","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "SO","SO","SO","FR","SO","SO","SO","SO","FR","SO",
+        "SO","SO","FR","SO","SO","SO","FR","FS","FS","RE",
+        "SO","SO","SO","SO","FR","SO","SO","SO","SO","FR","SO"
     ],
     "Roberto": [
-        "SO","SO","SO","FR","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "SO","SO","SO","SO","FR","SO","SO","SO","SO","SO",
+        "FR","SO","SO","SO","SO","SO","FR","FS","FS","RE",
+        "SO","SO","FR","SO","SO","SO","SO","FR","SO","SO","FR"
     ],
-    "Ronalldo": [
-        "FR","SO","SO","SO","SO","FR","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+    "Ronie": [
+        "SO","FR","SO","SO","SO","SO","FR","SO","SO","SO",
+        "SO","SO","FR","SO","SO","SO","SO","SO","FR","SO",
+        "SO","SO","SO","FR","FS","FS","RE","SO","SO","FR","SO"
     ],
     "Rui": [
         "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
-        "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "FR","SO","SO","SO","SO","SO","FR","SO","SO","SO",
+        "SO","FR","SO","SO","SO","FR","SO","SO","FR","SO","SO"
     ],
     "Sergio": [
         "SO","SO","FR","SO","SO","SO","SO","SO","SO","FR",
-        "SO","SO","SO","SO","SO","SO","FR","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","FR","SO","SO"
+        "FS","FS","FE","FE","FE","FE","FE","FE","FE","FE",
+        "FE","FE","FE","FE","FE","FE","FE","RE","SO","SO","SO"
     ],
     "Victor": [
-        "SO","SO","SO","FR","SO","SO","SO","SO","SO","SO",
-        "FR","SO","SO","SO","SO","SO","FR","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","FR","SO","SO"
-    ],
-    "Bento": [
-        "SO","FR","SO","SO","SO","FR","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "SO","SO","SO","FR","SO","SO","SO","FR","SO","SO",
+        "SO","SO","FR","SO","SO","SO","FR","FS","FS","RE",
+        "SO","SO","SO","FR","SO","SO","SO","SO","FR","SO","SO"
     ],
     "Wellber": [
-        "SO","SO","FR","SO","SO","FR","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "SO","SO","FR","SO","SO","FR","SO","SO","SO","FR",
+        "FS","FS","RE","SO","SO","FR","SO","SO","SO","SO",
+        "FR","SO","SO","SO","SO","FR","SO","SO","SO","SO","SO"
     ],
     "Yago": [
         "SO","SO","FR","FS","FS","FE","FE","FE","FE","FE",
         "FE","FE","FE","FE","FE","FE","FE","FE","FE","FE",
-        "FE","FE","FE","FE","FE","FE","FE","FE","FE","FE","FE"
+        "RE","SO","SO","SO","SO","SO","FR","SO","SO","SO","SO"
     ],
 
     # =========================================================================
-    # COPILOTOS
+    # COPILOTOS (em ordem alfabética) – Ronalldo movido para cá
     # =========================================================================
     "Cauê": [
         "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
-        "SO","SO","FR","FS","FS","RE","SO","SO","SO","SO",
-        "SO","SO","SO","SO","FR","FS","FS","RE","SO","SO","SO"
+        "FR","SO","SO","SO","FR","SO","SO","SO","SO","FR",
+        "SO","SO","SO","SO","FR","SO","SO","SO","FR","SO","SO"
     ],
     "Daniela": [
-        "SO","SO","FR","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "SO","SO","SO","SO","FR","SO","SO","SO","SO","FR",
+        "FS","FS","RE","SO","SO","SO","FR","SO","SO","SO",
+        "FR","SO","SO","FR","SO","SO","SO","FR","SO","SO","SO"
     ],
     "Ernesto": [
-        "SO","SO","FR","SO","SO","SO","FR","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","FR","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","FR"
-    ],
-    "Ruben": [
-        "FR","SO","SO","SO","FR","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "SO","SO","FR","SO","SO","SO","FR","SO","SO","FR",
+        "FS","FS","RE","SO","SO","SO","SO","FR","SO","SO",
+        "SO","SO","FR","SO","SO","SO","SO","SO","FR","SO","SO"
     ],
     "Rodrigo": [
-        "SO","SO","FR","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "SO","SO","FR","SO","SO","SO","SO","FR","SO","SO",
+        "SO","SO","FR","SO","SO","SO","FR","FS","FS","RE",
+        "SO","SO","SO","SO","FR","SO","SO","SO","FR","SO","SO"
     ],
-    "Thales": [
-        "SO","SO","SO","FR","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+    "Ronalldo": [  # MOVIDO PARA COPILOTOS
+        "FR","SO","SO","SO","SO","FR","SO","SO","SO","SO",
+        "SO","FR","SO","SO","SO","SO","SO","FR","SO","SO",
+        "SO","SO","SO","FR","FS","FS","RE","SO","SO","FR","SO"
+    ],
+    "Ruben": [
+        "FR","SO","SO","SO","FR","SO","SO","SO","SO","FR",
+        "FS","FS","RE","SO","SO","FR","SO","SO","SO","SO",
+        "FR","SO","SO","SO","SO","FR","SO","SO","SO","SO","SO"
     ],
     "Serafim": [
         "FR","SO","SO","SO","SO","SO","FR","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+        "SO","FR","SO","SO","SO","SO","FR","FS","FS","RE",
+        "SO","SO","SO","SO","RE","SO","SO","SO","RE","SO","SO"
     ],
-    "Tiago": [
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO",
-        "SO","SO","SO","SO","SO","SO","SO","SO","SO","SO","SO"
+    "Thales": [
+        "SO","SO","SO","FR","SO","SO","SO","SO","SO","FR",
+        "SO","SO","SO","SO","FR","SO","SO","SO","SO","FR",
+        "SO","SO","SO","FR","FS","FS","RE","SO","SO","SO","RE"
     ]
+    # Tiago removido
 }
 
 # =========================================================================
-# LISTAS AUXILIARES (para relatórios)
+# LISTAS AUXILIARES (atualizadas – Ronalldo movido para copilotos)
 # =========================================================================
 LISTA_COMANDANTES = [
-    "Adelio", "Otto", "Andre", "Cleiton", "Cleverson", "Dany", "Edson", "Felipe",
-    "Frank", "Gabriel", "Hazafe", "Igorh", "Amarildo", "Joao", "Dayvid", "Leandro",
-    "Lindomar", "Lucas", "Luiz", "Andrade", "Mathias", "Milton", "Pascoal", "Paulo",
-    "Perisson", "Renan", "Roberto", "Ronalldo", "Rui", "Sergio", "Victor", "Bento",
-    "Wellber", "Yago"
+    "Adelio", "Amarildo", "Andrade", "Andre", "Bento", "Cleiton", "Cleverson",
+    "Costa", "Dany", "Dayvid", "Edson", "Frank", "Gabriel", "Hazafe",
+    "Igorh", "Joao", "Leandro", "Lindomar", "Lucas", "Luiz", "Mathias",
+    "Milton", "Pascoal", "Paulo", "Perisson", "Renan", "Roberto",
+    "Ronie", "Rui", "Sergio", "Victor", "Wellber", "Yago"
 ]
 
-LISTA_COPILOTOS = ["Cauê", "Daniela", "Ernesto", "Ruben", "Rodrigo", "Thales", "Serafim", "Tiago"]
+LISTA_COPILOTOS = ["Cauê", "Daniela", "Ernesto", "Rodrigo", "Ronalldo", "Ruben", "Serafim", "Thales"]
 
+# =========================================================================
+# FUNÇÃO DE TESTE (só executa se o script for rodado diretamente)
+# =========================================================================
 def obter_disponiveis_no_dia(dia):
-    """Retorna os comandantes e copilotos disponíveis (SO) no dia informado."""
     if dia < 1 or dia > 31:
         print("Erro: O dia deve estar entre 1 e 31.")
         return
@@ -265,10 +265,5 @@ def obter_disponiveis_no_dia(dia):
         print("Nenhum copiloto disponível.")
     print("=" * 55)
 
-
-# =========================================================================
-# CORREÇÃO: a chamada de teste só executa se o script for rodado diretamente
-# =========================================================================
 if __name__ == "__main__":
-    # Exemplo de uso – você pode alterar o dia para testar outros dias da escala
     obter_disponiveis_no_dia(8)
