@@ -3,7 +3,13 @@ services:
     name: planilha-horas-voare
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.0
+      - key: DATABASE_URL
+        value: postgresql://postgres:senha@host:5432/db?sslmode=require  # ou a URL do seu banco
+      - key: EDIT_PASSWORD
+        value: Emerson
+      - key: EDIT_PASSWORD_2
+        value: Bispo
