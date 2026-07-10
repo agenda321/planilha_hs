@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Escala Mensal de Folgas - Julho de 2026 - Voare Táxi Aéreo
-# REMOVIDOS: Felipe (Jabur), Tiago (Quirino)
-# Ronalldo movido para COPILOTOS (conforme solicitado)
+# REMOVIDOS: Felipe Jabur, Tiago Quirino
+# Ronalldo movido para COPILOTOS
 
 ESCALA_MENSAL = {
     # =========================================================================
@@ -220,7 +220,7 @@ ESCALA_MENSAL = {
 }
 
 # =========================================================================
-# LISTAS AUXILIARES (atualizadas – Ronalldo movido para copilotos)
+# LISTAS AUXILIARES (atualizadas – removidos Felipe e Tiago, Ronalldo em copilotos)
 # =========================================================================
 LISTA_COMANDANTES = [
     "Adelio", "Amarildo", "Andrade", "Andre", "Bento", "Cleiton", "Cleverson",
