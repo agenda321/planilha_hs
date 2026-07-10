@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import re
 from flask import Flask, request, jsonify, render_template
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
@@ -24,25 +25,21 @@ CORS(app)
 print("✅ Flask e CORS configurados")
 sys.stdout.flush()
 
-# ===== BANCO DE DADOS (SUPABASE CORRIGIDO) =====
+# ===== BANCO DE DADOS =====
 database_url = os.environ.get("DATABASE_URL")
 if not database_url:
     print("❌ DATABASE_URL não definida! Usando SQLite para teste.")
     database_url = "sqlite:///test.db"
 else:
-    # Converte postgres:// para postgresql://
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
-    
+
     # ===== CORREÇÃO PARA SUPABASE =====
     if "supabase" in database_url.lower():
-        # Extrai o ID do projeto (subdomínio)
-        import re
         match = re.search(r'://[^@]+@([^.]+)\.supabase\.co', database_url)
         if match:
             project_id = match.group(1)
             print(f"🔑 Projeto Supabase detectado: {project_id}")
-            # Adiciona sslmode e options se não existirem
             if "?" not in database_url:
                 database_url += f"?sslmode=require&options=project%3D{project_id}"
             elif "sslmode" not in database_url:
@@ -56,12 +53,11 @@ else:
             elif "sslmode" not in database_url:
                 database_url += "&sslmode=require"
     else:
-        # Para outros bancos (ex: Render PostgreSQL), apenas sslmode se necessário
         if "?" not in database_url:
             database_url += "?sslmode=require"
         elif "sslmode" not in database_url:
             database_url += "&sslmode=require"
-    
+
     print(f"✅ DATABASE_URL configurada: {database_url[:80]}...")
     sys.stdout.flush()
 
@@ -150,11 +146,14 @@ def obtener_escala_dinamica(pilot_obj, month, year):
     return escala
 
 def logs_por_piloto(logs):
+    """Retorna dict com chave 'month,day' (string) para serialização JSON."""
     result = {}
     for log in logs:
         if log.pilot.name not in result:
             result[log.pilot.name] = {}
-        result[log.pilot.name][(log.month, log.day)] = log.hours
+        # CORREÇÃO: usar string em vez de tupla
+        key = f"{log.month},{log.day}"
+        result[log.pilot.name][key] = log.hours
     return result
 
 # ===== ROTAS =====
@@ -188,7 +187,7 @@ def get_data():
         year = request.args.get("year", default=datetime.now().year, type=int)
         pilots = Pilot.query.filter(Pilot.name.notin_(PILOTOS_EXCLUIDOS)).all()
         logs_current = FlightLog.query.filter_by(month=month, year=year).all()
-        
+
         # Logs adjacentes para streak
         prev_month = month - 1 if month > 1 else 12
         prev_year = year if month > 1 else year - 1
@@ -197,18 +196,20 @@ def get_data():
         next_year = year if month < 12 else year + 1
         logs_next = FlightLog.query.filter_by(month=next_month, year=next_year).all()
 
-        # ===== CORREÇÃO: chaves de logs_adjacent viram string "mes-dia" em vez de tupla (mes, dia) =====
-        # jsonify() não consegue serializar dict com chave tupla; isso causava
-        # "keys must be str, int, float, bool or None, not tuple" em toda chamada a /api/data.
+        # Usa a função corrigida (chaves string)
+        logs_current_map = logs_por_piloto(logs_current)
+        logs_prev_map = logs_por_piloto(logs_prev)
+        logs_next_map = logs_por_piloto(logs_next)
+
         logs_adjacent = {}
-        for pilot_name in set(logs_por_piloto(logs_current)) | set(logs_por_piloto(logs_prev)) | set(logs_por_piloto(logs_next)):
+        for pilot_name in set(logs_current_map) | set(logs_prev_map) | set(logs_next_map):
             logs_adjacent[pilot_name] = {}
-            for (m, d), h in logs_por_piloto(logs_prev).get(pilot_name, {}).items():
-                logs_adjacent[pilot_name][f"{m}-{d}"] = h
-            for (m, d), h in logs_por_piloto(logs_current).get(pilot_name, {}).items():
-                logs_adjacent[pilot_name][f"{m}-{d}"] = h
-            for (m, d), h in logs_por_piloto(logs_next).get(pilot_name, {}).items():
-                logs_adjacent[pilot_name][f"{m}-{d}"] = h
+            for key, horas in logs_prev_map.get(pilot_name, {}).items():
+                logs_adjacent[pilot_name][key] = horas
+            for key, horas in logs_current_map.get(pilot_name, {}).items():
+                logs_adjacent[pilot_name][key] = horas
+            for key, horas in logs_next_map.get(pilot_name, {}).items():
+                logs_adjacent[pilot_name][key] = horas
 
         result = {
             "pilots": [{"name": p.name, "group": p.group, "full_name": p.full_name or p.name} for p in pilots],
