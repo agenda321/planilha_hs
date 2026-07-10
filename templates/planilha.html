@@ -13,7 +13,7 @@
     <link rel="apple-touch-icon" href="/icon-192.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* (mesmo CSS que você já tem, incluindo as cores de status) */
+        /* CSS completo (mesmo do original) */
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
             margin: 0; min-height: 100vh;
@@ -142,7 +142,6 @@
         .planilha th:first-child { position: sticky; left: 0; z-index: 15; background: #9c7a50; }
         .planilha th.col-ativa { background: linear-gradient(to bottom, #e6a800, #a07000) !important; }
         .planilha td.col-ativa { background: #fffacc !important; }
-        
         .input-hora {
             width: 58px; padding: 4px; text-align: center;
             font-family: monospace; font-size: 0.78rem;
@@ -151,24 +150,22 @@
             touch-action: manipulation;
         }
         .input-hora::placeholder { color: #bbb; font-size: 0.65rem; }
-        .input-hora.has-value { background: #fff1b5; border-color: #e4b149; box-shadow: 0 0 5px gold; color: #000 !important; font-weight: bold; }
+        .input-hora.has-value { background: #fff1b5; border-color: #e4b149; box-shadow: 0 0 5px gold; }
         .input-hora.streak-day { background: #ffcc99; border-color: #e67300; }
         .input-hora.editando-longpress {
             outline: 3px solid #ffaa00;
             box-shadow: 0 0 0 4px rgba(255,170,0,0.3);
             background: #fff8e0 !important;
         }
-        
-        .input-hora[data-status="DM"], .input-hora[data-status="CM"] { background: #ffb366 !important; border-color: #cc5200; color: #662200; font-weight: bold; }
-        .input-hora[data-status="VO"], .input-hora[data-status="CQ"], .input-hora[data-status="TN"] { background: #99ccff !important; border-color: #0066cc; color: #003366; font-weight: bold; }
-        .input-hora[data-status="EA"], .input-hora[data-status="TR"] { background: #ffff99 !important; border-color: #cccc00; color: #666600; font-weight: bold; }
-        .input-hora[data-status="FR"] { background: #90ee90 !important; border-color: #008000; color: #004d00; font-weight: bold; }
-        .input-hora[data-status="FS"] { background: #ff9999 !important; border-color: #cc0000; color: #660000; font-weight: bold; }
-        .input-hora[data-status="FE"] { background: #ccffcc !important; border-color: #00cc00; color: #006600; font-weight: bold; }
-        .input-hora[data-status="RE"] { background: #ffccff !important; border-color: #cc66cc; color: #660066; font-weight: bold; }
-        .input-hora[data-status="SO"] { background: #ffffff !important; border-color: #999999; color: #333333; font-weight: bold; }
+        .input-hora[data-status="DM"], .input-hora[data-status="CM"] { background: #ffb366; border-color: #cc5200; color: #662200; font-weight: bold; }
+        .input-hora[data-status="VO"], .input-hora[data-status="CQ"], .input-hora[data-status="TN"] { background: #99ccff; border-color: #0066cc; color: #003366; font-weight: bold; }
+        .input-hora[data-status="EA"], .input-hora[data-status="TR"] { background: #ffff99; border-color: #cccc00; color: #666600; font-weight: bold; }
+        .input-hora[data-status="FR"] { background: #90ee90; border-color: #008000; color: #004d00; font-weight: bold; }
+        .input-hora[data-status="FS"] { background: #ff9999; border-color: #cc0000; color: #660000; font-weight: bold; }
+        .input-hora[data-status="FE"] { background: #ccffcc; border-color: #00cc00; color: #006600; font-weight: bold; }
+        .input-hora[data-status="RE"] { background: #ffccff; border-color: #cc66cc; color: #660066; font-weight: bold; }
+        .input-hora[data-status="SO"] { background: #ffffff; border-color: #999999; color: #333333; font-weight: bold; }
         .input-hora[data-status="default"] { background: #f9f2e0; border-color: #c9aa77; }
-        
         .total-cell { background: #e7dbbc; font-weight: bold; font-size: 0.8rem; }
         .group-title-row td {
             background: linear-gradient(135deg, #ccaa7a, #b1834d);
@@ -298,6 +295,7 @@
             <button class="btn-ajuda" id="btnAjuda" title="Legenda">?</button>
         </div>
 
+        <!-- BOTÕES DOS DIAS -->
         <div class="dias-botoes" id="botoesDias"></div>
 
         <div class="table-wrapper">
@@ -386,12 +384,7 @@ function getNomeFromRow(row) { return row.cells[0].innerText.trim(); }
 function atualizarCorInput(inp) {
     const valor = inp.value.trim();
     const status = getStatusFromValue(valor);
-    const statusOriginal = inp.getAttribute('data-status-original');
-    if (statusOriginal) {
-        inp.setAttribute('data-status', statusOriginal);
-        if (valor !== statusOriginal && valor !== "") inp.classList.add('has-value');
-        else inp.classList.remove('has-value');
-    } else if (status) {
+    if (status) {
         inp.setAttribute('data-status', status);
         inp.classList.remove('has-value');
     } else if (valor && parseHora(valor) > 0) {
@@ -415,77 +408,18 @@ function atualizarTotalLinha(row) {
     return soma;
 }
 
-// ===== STREAK COM MESES ADJACENTES =====
-function validarStreaks(logsAdjacent) {
+function validarStreaks() {
+    // Implementação simplificada (apenas para alerta visual)
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
-        const nome = getNomeFromRow(row);
         const inputs = row.querySelectorAll('.input-hora');
-        const mesAtual = getMesNumero(document.getElementById('campoMes').value.trim() || "Julho");
-        const anoAtual = new Date().getFullYear();
-        const diasNoMesAtual = DIAS;
-        const logsPiloto = logsAdjacent[nome] || {};
-
-        function temHora(mes, dia) {
-            if (mes === mesAtual) {
-                return data.logs[nome] && data.logs[nome][dia] > 0;
-            } else {
-                const key = `${mes},${dia}`;
-                return logsPiloto[key] > 0;
-            }
+        const vals = Array.from(inputs).map(inp => parseHora(inp.value) > 0 ? 1 : 0);
+        let streak = 0;
+        const seq = new Array(DIAS).fill(false);
+        for (let i = 0; i < DIAS; i++) {
+            if (vals[i]) { streak++; if (streak >= 6) for (let j = i-streak+1; j<=i; j++) seq[j]=true; }
+            else streak = 0;
         }
-
-        const seq = new Array(diasNoMesAtual + 1).fill(false);
-        for (let d = 1; d <= diasNoMesAtual; d++) {
-            let count = 0;
-            let retrocesso = 0;
-            while (count < 6) {
-                let mesVerif = mesAtual;
-                let diaVerif = d - retrocesso;
-                let anoVerif = anoAtual;
-                if (diaVerif < 1) {
-                    mesVerif = mesAtual - 1;
-                    if (mesVerif < 1) { mesVerif = 12; anoVerif = anoAtual - 1; }
-                    diaVerif = diasNoMes(mesVerif) + diaVerif;
-                }
-                if (temHora(mesVerif, diaVerif)) { count++; retrocesso++; }
-                else break;
-            }
-            let avancar = 1;
-            while (count < 6) {
-                let mesFuturo = mesAtual;
-                let diaFuturo = d + avancar;
-                let anoFuturo = anoAtual;
-                if (diaFuturo > diasNoMes(mesFuturo)) {
-                    mesFuturo = mesAtual + 1;
-                    if (mesFuturo > 12) { mesFuturo = 1; anoFuturo = anoAtual + 1; }
-                    diaFuturo = 1;
-                }
-                if (temHora(mesFuturo, diaFuturo)) { count++; avancar++; }
-                else break;
-            }
-            if (count >= 6) {
-                for (let j = 0; j < count; j++) {
-                    let diaSeq = d - retrocesso + j;
-                    let mesSeq = mesAtual;
-                    let anoSeq = anoAtual;
-                    if (diaSeq < 1) {
-                        mesSeq = mesAtual - 1;
-                        if (mesSeq < 1) { mesSeq = 12; anoSeq = anoAtual - 1; }
-                        diaSeq = diasNoMes(mesSeq) + diaSeq;
-                    } else if (diaSeq > diasNoMes(mesSeq)) {
-                        mesSeq = mesAtual + 1;
-                        if (mesSeq > 12) { mesSeq = 1; anoSeq = anoAtual + 1; }
-                        diaSeq = diaSeq - diasNoMes(mesAtual);
-                    }
-                    if (mesSeq === mesAtual && diaSeq >= 1 && diaSeq <= diasNoMesAtual) {
-                        seq[diaSeq] = true;
-                    }
-                }
-            }
-        }
-        inputs.forEach((inp, i) => {
-            inp.classList.toggle('streak-day', seq[i+1]);
-        });
+        inputs.forEach((inp, i) => inp.classList.toggle('streak-day', seq[i]));
         const nc = row.querySelector('td:first-child');
         const ic = nc.querySelector('.alert-icon');
         if (seq.some(v=>v)) {
@@ -502,7 +436,8 @@ function recalcularTudo() {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td style="font-weight:bold">🏁 TOTAL GERAL</td>${'<td></td>'.repeat(DIAS)}<td class="total-geral">${formatarHora(soma)}</td>`;
     tfoot.appendChild(tr);
-    // Streaks serão validados em carregarDoBackend, após ter logsAdjacent
+    validarStreaks();
+    atualizarTotaisBotoesDias();
 }
 
 function totalHorasDia(diaIndex) {
@@ -539,10 +474,12 @@ function ativarEdicaoDia(diaIndex) {
         } else {
             inp.disabled = false;
             inp.placeholder = "0,0";
-            const valorAtual = inp.value.trim();
-            if (["FR","FS","RE","SO"].includes(valorAtual) || (parseHora(valorAtual) === 0 && !getStatusFromValue(valorAtual))) {
+            const valorAtual = parseHora(inp.value);
+            if (valorAtual === 0 && !getStatusFromValue(inp.value)) {
                 inp.value = "";
             }
+            inp.removeAttribute('data-status');
+            inp.classList.remove('has-value');
         }
         atualizarCorInput(inp);
     });
@@ -776,7 +713,6 @@ function getMesNumero(nomeMes) {
     return mapa[nomeMes.toLowerCase()] || new Date().getMonth() + 1;
 }
 
-// ===== CARREGAR BACKEND =====
 async function carregarDoBackend() {
     const syncSpan = document.getElementById('syncStatus');
     syncSpan.innerHTML = '⏳ Carregando...';
@@ -789,10 +725,11 @@ async function carregarDoBackend() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
-        if (!data.pilots || !data.logs) throw new Error('Resposta incompleta de dados');
+        if (!data.pilots || !data.logs) {
+            throw new Error('Resposta incompleta de dados');
+        }
 
         ESCALA_MENSAL = data.escala || {};
-        const logsAdjacent = data.logs_adjacent || {};
         atualizarDias();
 
         const thead = document.getElementById('tableHeader');
@@ -830,7 +767,7 @@ async function carregarDoBackend() {
                     let valor = data.logs[p.name]?.[i+1] || 0;
                     if (p.name === "Daniela" && i === 1) valor = 0;
                     const statusOriginal = ESCALA_MENSAL[p.name]?.[i] || "";
-                    if (statusOriginal !== "") inp.setAttribute('data-status-original', statusOriginal);
+                    
                     if (valor > 0) {
                         inp.value = formatarHora(valor);
                         total += valor;
@@ -839,6 +776,7 @@ async function carregarDoBackend() {
                     } else {
                         inp.value = "";
                     }
+                    
                     atualizarCorInput(inp);
                     inp.disabled = true;
 
@@ -869,8 +807,11 @@ async function carregarDoBackend() {
                         if (diaEditandoIndex === i && isEditing && !this.disabled) {
                             const v = parseHora(this.value);
                             const st = getStatusFromValue(this.value.trim().toUpperCase());
-                            if (v > 0) this.value = formatarHora(v);
-                            else if (st) this.value = st;
+                            if (v > 0) {
+                                this.value = formatarHora(v);
+                            } else if (st) {
+                                this.value = st;
+                            }
                             atualizarCorInput(this);
                             atualizarTotalLinha(row);
                             recalcularTudo();
@@ -887,10 +828,8 @@ async function carregarDoBackend() {
                 tbody.appendChild(row);
             }
         }
-        // Aplica streak usando dados adjacentes
-        validarStreaks(logsAdjacent);
         recalcularTudo();
-        criarBotoesDias();
+        criarBotoesDias();   // <--- CRIA OS BOTÕES DOS DIAS
         sairEdicaoDia();
         syncSpan.innerHTML = '✅ Carregado';
         setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 2000);
@@ -1048,8 +987,7 @@ document.getElementById('btnMesAnterior').addEventListener('click', function() {
     const mesAtual = document.getElementById('campoMes').value.trim();
     const mesNum = getMesNumero(mesAtual);
     let novoMesNum = mesNum - 1;
-    let novoAno = new Date().getFullYear();
-    if (novoMesNum < 1) { novoMesNum = 12; novoAno--; }
+    if (novoMesNum < 1) { novoMesNum = 12; }
     const novoMesNome = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][novoMesNum-1];
     document.getElementById('campoMes').value = novoMesNome;
     salvarMesNoStorage(novoMesNome);
@@ -1061,8 +999,7 @@ document.getElementById('btnMesProximo').addEventListener('click', function() {
     const mesAtual = document.getElementById('campoMes').value.trim();
     const mesNum = getMesNumero(mesAtual);
     let novoMesNum = mesNum + 1;
-    let novoAno = new Date().getFullYear();
-    if (novoMesNum > 12) { novoMesNum = 1; novoAno++; }
+    if (novoMesNum > 12) { novoMesNum = 1; }
     const novoMesNome = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][novoMesNum-1];
     document.getElementById('campoMes').value = novoMesNome;
     salvarMesNoStorage(novoMesNome);
