@@ -146,7 +146,6 @@ def obtener_escala_dinamica(pilot_obj, month, year):
     return escala
 
 def logs_por_piloto(logs):
-    """Retorna dict com chave 'month,day' (string) para serialização JSON."""
     result = {}
     for log in logs:
         if log.pilot.name not in result:
