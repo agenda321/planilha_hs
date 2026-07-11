@@ -219,9 +219,6 @@ ESCALA_MENSAL = {
     # Tiago removido
 }
 
-# =========================================================================
-# LISTAS AUXILIARES (atualizadas – removidos Felipe e Tiago, Ronalldo em copilotos)
-# =========================================================================
 LISTA_COMANDANTES = [
     "Adelio", "Amarildo", "Andrade", "Andre", "Bento", "Cleiton", "Cleverson",
     "Costa", "Dany", "Dayvid", "Edson", "Frank", "Gabriel", "Hazafe",
@@ -232,9 +229,6 @@ LISTA_COMANDANTES = [
 
 LISTA_COPILOTOS = ["Cauê", "Daniela", "Ernesto", "Rodrigo", "Ronalldo", "Ruben", "Serafim", "Thales"]
 
-# =========================================================================
-# FUNÇÃO DE TESTE (só executa se o script for rodado diretamente)
-# =========================================================================
 def obter_disponiveis_no_dia(dia):
     if dia < 1 or dia > 31:
         print("Erro: O dia deve estar entre 1 e 31.")
