@@ -2,7 +2,7 @@ import os
 import sys
 import time
 import re
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, redirect
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from flask_cors import CORS
@@ -10,7 +10,6 @@ from flask_cors import CORS
 print("🚀 Iniciando aplicação...")
 sys.stdout.flush()
 
-# ===== TENTA CARREGAR A ESCALA =====
 try:
     from escala import ESCALA_MENSAL
     print("✅ Escala carregada com sucesso")
@@ -19,13 +18,11 @@ except Exception as e:
     ESCALA_MENSAL = {}
 sys.stdout.flush()
 
-# ===== FLASK =====
 app = Flask(__name__)
 CORS(app)
 print("✅ Flask e CORS configurados")
 sys.stdout.flush()
 
-# ===== BANCO DE DADOS (SUPABASE CORRIGIDO) =====
 database_url = os.environ.get("DATABASE_URL")
 if not database_url:
     print("❌ DATABASE_URL não definida! Usando SQLite para teste.")
@@ -34,7 +31,6 @@ else:
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-    # ===== CORREÇÃO PARA SUPABASE =====
     if "supabase" in database_url.lower():
         match = re.search(r'://[^@]+@([^.]+)\.supabase\.co', database_url)
         if match:
@@ -78,7 +74,6 @@ db = SQLAlchemy(app)
 print("✅ SQLAlchemy configurado")
 sys.stdout.flush()
 
-# ===== CONSTANTES =====
 EDIT_PASSWORD = os.environ.get("EDIT_PASSWORD", "Emerson")
 EDIT_PASSWORD_2 = os.environ.get("EDIT_PASSWORD_2", "Bispo")
 CODIGOS_DISPONIVEIS = ["VO", "CQ", "RE", "SO", "EA", "TR", "TN"]
@@ -98,7 +93,6 @@ CORES = {
 }
 PILOTOS_EXCLUIDOS = []
 
-# ===== MODELOS =====
 class Pilot(db.Model):
     __tablename__ = "pilot"
     id = db.Column(db.Integer, primary_key=True)
@@ -129,7 +123,6 @@ class StatusOverride(db.Model):
 print("✅ Modelos definidos")
 sys.stdout.flush()
 
-# ===== FUNÇÕES =====
 def normalizar_status(status):
     if status is None or status == "" or status == " ":
         return "VO"
@@ -154,10 +147,9 @@ def logs_por_piloto(logs):
         result[log.pilot.name][key] = log.hours
     return result
 
-# ===== ROTAS =====
 @app.route("/")
 def landing():
-    return app.send_static_file('index.html')
+    return redirect("/planilha")
 
 @app.route("/planilha")
 def planilha():
@@ -331,7 +323,6 @@ def reset_banco():
     except Exception as e:
         return f"Erro: {e}", 500
 
-# ===== POPULAÇÃO INICIAL =====
 def povoar_dados_iniciais():
     grupos = {
         "Andre": "CESSNA 206/210", "Andrade": "CESSNA 206/210", "Luiz": "CESSNA 206/210",
@@ -425,7 +416,6 @@ def povoar_dados_iniciais():
     print("✅ Dados iniciais populados")
     sys.stdout.flush()
 
-# ===== INICIALIZAÇÃO =====
 def init_db():
     print("🔄 Tentando criar tabelas...")
     sys.stdout.flush()
@@ -449,7 +439,6 @@ def init_db():
 
 init_db()
 
-# ===== PONTO DE ENTRADA =====
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"✅ Servidor rodando na porta {port}")
