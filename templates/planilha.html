@@ -439,7 +439,7 @@ function recalcularTudo() {
     const tfoot = document.getElementById('tfootTotal');
     tfoot.innerHTML = '';
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td style="font-weight:bold">🏁 TOTAL GERAL</td>\( {'<td></td>'.repeat(DIAS)}<td class="total-geral"> \){formatarHora(soma)}</td>`;
+    tr.innerHTML = `<td style="font-weight:bold">🏁 TOTAL GERAL</td>${'<td></td>'.repeat(DIAS)}<td class="total-geral">${formatarHora(soma)}</td>`;
     tfoot.appendChild(tr);
     validarStreaks();
     atualizarTotaisBotoesDias();
@@ -641,7 +641,7 @@ function mostrarComparativoDia(diaIndex) {
         else if (p.status === 'FS') { bgColor = '#ff9999'; textColor = '#660000'; }
         else if (p.status === 'FE') { bgColor = '#ccffcc'; textColor = '#006600'; }
         const rowStyle = bgColor ? `style="background-color:${bgColor};"` : '';
-        html += `<tr \( {rowStyle}><td style="text-align:center;color: \){textColor||'inherit'}">\( {idx+1}</td><td style="color: \){textColor||'inherit'}">\( {medalha} \){p.nome}</td><td style="color:\( {textColor||(p.total>0?'#2a8a2a':'#aaa')}"> \){horasDisplay}</td><td><div class="progress-bar-wrap"><div class="barra-fill" style="width:${perc}%"></div></div></td></tr>`;
+        html += `<tr ${rowStyle}><td style="text-align:center;color:${textColor||'inherit'}">${idx+1}</td><td style="color:${textColor||'inherit'}">${medalha}${p.nome}</td><td style="color:${textColor||(p.total>0?'#2a8a2a':'#aaa')}">${horasDisplay}</td><td><div class="progress-bar-wrap"><div class="barra-fill" style="width:${perc}%"></div></div></td></tr>`;
     });
     html += `</tbody></table></div><button class="btn-fechar" id="fecharDetalhe">Fechar</button></div>`;
     const modal = document.createElement('div');
@@ -660,7 +660,7 @@ async function mostrarDisponiveis(diaRef) {
         const mesInput = document.getElementById('campoMes');
         const mesNome = mesInput.value.trim() || "Julho";
         const month = getMesNumero(mesNome);
-        const res = await fetch(`/api/available_commanders/\( {diaSeguinte}?month= \){month}&year=${anoAtual}`);
+        const res = await fetch(`/api/available_commanders/${diaSeguinte}?month=${month}&year=${anoAtual}`);
         const data = await res.json();
         let html = `<div class="card-detalhe"><h2 style="text-align:center;">👥 Disponíveis — Dia ${String(diaSeguinte+1).padStart(2,'00')}</h2>`;
         const titulos = {
@@ -681,7 +681,7 @@ async function mostrarDisponiveis(diaRef) {
                     if (c.status === 'RE') badgeStyle = 'background:#ffccff; color:#660066; border:1px solid #cc66cc; font-weight:bold;';
                     if (c.status === 'SO') badgeStyle = 'background:#e0f7fa; color:#006064; border:1px solid #00838f; font-weight:bold;';
                     html += `<li style="padding:6px 8px;display:flex;justify-content:space-between;border-bottom:1px solid #e8d5b0;">
-                        <span><strong>\( {c.name}</strong> <span style="padding:2px 8px;border-radius:12px;font-size:0.65rem; \){badgeStyle}">${c.status}</span></span>
+                        <span><strong>${c.name}</strong> <span style="padding:2px 8px;border-radius:12px;font-size:0.65rem;${badgeStyle}">${c.status}</span></span>
                         <strong>${c.horas_totais.toFixed(1)}h</strong>
                     </li>`;
                 });
@@ -734,7 +734,7 @@ async function carregarDoBackend() {
     try {
         const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
         const mesNum = getMesNumero(mesNome);
-        const url = `/api/data?month=\( {mesNum}&year= \){anoAtual}`;
+        const url = `/api/data?month=${mesNum}&year=${anoAtual}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -747,7 +747,7 @@ async function carregarDoBackend() {
         atualizarDias();
 
         const thead = document.getElementById('tableHeader');
-        thead.innerHTML = `<tr><th>👤 PILOTO</th>\( {Array.from({length:DIAS},(_,i)=>`<th> \){String(i+1).padStart(2,'00')}</th>`).join('')}<th>⭐ TOTAL</th></tr>`;
+        thead.innerHTML = `<tr><th>👤 PILOTO</th>${Array.from({length:DIAS},(_,i)=>`<th>${String(i+1).padStart(2,'00')}</th>`).join('')}<th>⭐ TOTAL</th></tr>`;
 
         const tbody = document.getElementById('planilhaBody');
         tbody.innerHTML = '';
@@ -761,7 +761,7 @@ async function carregarDoBackend() {
         for (let grupo of ["CESSNA 206/210","CARAVAN","COPILOTO"]) {
             const titleRow = document.createElement('tr');
             titleRow.classList.add('group-title-row');
-            titleRow.innerHTML = `<td colspan="\( {DIAS+2}"><i class="fas fa- \){grupo==="COPILOTO"?"headset":"plane"}"></i> ${grupo}</td>`;
+            titleRow.innerHTML = `<td colspan="${DIAS+2}"><i class="fas fa-${grupo==="COPILOTO"?"headset":"plane"}"></i> ${grupo}</td>`;
             tbody.appendChild(titleRow);
             for (let p of grupos[grupo]) {
                 const row = document.createElement('tr');
@@ -957,7 +957,7 @@ function mostrarAjuda() {
     ];
     let html = `<div class="card-ajuda"><h3 style="text-align:center;">📖 Legenda</h3>`;
     itens.forEach(item => {
-        html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:\( {item.cor};border:1px solid #ccc;"> \){item.texto.split('—')[0].trim()}</div><span>${item.texto.split('—')[1]?.trim() || ''}</span></div>`;
+        html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:${item.cor};border:1px solid #ccc;">${item.texto.split('—')[0].trim()}</div><span>${item.texto.split('—')[1]?.trim() || ''}</span></div>`;
     });
     html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;"><strong>Toque no dia</strong> → menu<br><strong>Modo edição</strong> → digite horas direto em FR/FS/RE<br><strong>Long press</strong> → trocar status</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
     const modal = document.createElement('div');
