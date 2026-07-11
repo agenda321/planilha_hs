@@ -327,6 +327,16 @@ def reset_banco():
     except Exception as e:
         return f"Erro: {e}", 500
 
+@app.route("/api/debug/clear-month/<int:month>/<int:year>")
+def clear_month(month, year):
+    try:
+        apagados = FlightLog.query.filter_by(month=month, year=year).delete()
+        db.session.commit()
+        return f"✅ {apagados} registro(s) de horas apagados para {month}/{year}. Pilotos e escala não foram alterados."
+    except Exception as e:
+        db.session.rollback()
+        return f"Erro: {e}", 500
+
 def povoar_dados_iniciais():
     grupos = {
         "Andre": "CESSNA 206/210", "Andrade": "CESSNA 206/210", "Luiz": "CESSNA 206/210",
@@ -370,7 +380,12 @@ def povoar_dados_iniciais():
         piloto = Pilot(name=nome, full_name=nomes_completos.get(nome, nome), group=group)
         db.session.add(piloto)
     db.session.commit()
+    print("✅ Pilotos populados (sem horas de exemplo)")
+    sys.stdout.flush()
+    return
 
+    # ⚠️ Dados de exemplo desativados — não são horas reais, eram só um teste.
+    # Se um dia quiser reativar, remova o "return" acima.
     m_atual, y_atual = datetime.now().month, datetime.now().year
     dados_foto = {
         "Andrade": {1: 3.4, 2: 6.4, 3: 2.9, 5: 5.9, 6: 7.9, 7: 8.0, 9: 6.8},
