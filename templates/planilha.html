@@ -157,6 +157,8 @@
             box-shadow: 0 0 0 4px rgba(255,170,0,0.3);
             background: #fff8e0 !important;
         }
+        /* 🔧 CORREÇÃO: cursor indicando que célula é só-leitura (FR/FS/RE) durante edição normal */
+        .input-hora[readonly] { cursor: not-allowed; }
         .input-hora[data-status="DM"], .input-hora[data-status="CM"] { background: #ffb366; border-color: #cc5200; color: #662200; font-weight: bold; }
         .input-hora[data-status="VO"], .input-hora[data-status="CQ"], .input-hora[data-status="TN"] { background: #99ccff; border-color: #0066cc; color: #003366; font-weight: bold; }
         .input-hora[data-status="EA"], .input-hora[data-status="TR"] { background: #ffff99; border-color: #cccc00; color: #666600; font-weight: bold; }
@@ -348,7 +350,11 @@ function getGrupo(nome) {
     return "CESSNA 206/210";
 }
 
+// Bloqueio total: campo fica disabled, não dá pra tocar nem editar de jeito nenhum.
 const STATUS_BLOQUEADOS = ["DM","CM","EA","FE","TR","TN","CQ"];
+// 🔧 CORREÇÃO: FR, FS e RE agora ficam "respeitadas" - o campo continua tocável
+// (necessário pro long-press funcionar), mas fica readonly, então não dá pra
+// digitar hora por cima do texto do status diretamente. Só editável via long-press.
 const STATUS_EDITAVEL_LONGPRESS = ["FS","RE","FR"];
 function isStatusBloqueado(status) { return STATUS_BLOQUEADOS.includes(status); }
 
@@ -357,6 +363,9 @@ let isEditing = false;
 let diaEditandoIndex = null;
 let diaReferencia = null;
 let password = "";
+// 🔧 CORREÇÃO: ano agora é rastreado separadamente do mês, pra navegação
+// entre Dezembro/Janeiro não quebrar (antes sempre usava o ano atual do sistema).
+let anoAtual = new Date().getFullYear();
 
 function diasNoMes(mes) {
     const m = mes.toLowerCase();
@@ -409,7 +418,6 @@ function atualizarTotalLinha(row) {
 }
 
 function validarStreaks() {
-    // Implementação simplificada (apenas para alerta visual)
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
         const inputs = row.querySelectorAll('.input-hora');
         const vals = Array.from(inputs).map(inp => parseHora(inp.value) > 0 ? 1 : 0);
@@ -469,17 +477,30 @@ function ativarEdicaoDia(diaIndex) {
         if (!inp) return;
 
         if (isStatusBloqueado(status)) {
+            // 🔧 Bloqueio total: FE, DM, CM, EA, TR, TN, CQ - não editável de forma alguma.
             inp.disabled = true;
+            inp.readOnly = false;
+            inp.placeholder = "";
+        } else if (STATUS_EDITAVEL_LONGPRESS.includes(status)) {
+            // 🔧 CORREÇÃO: FR, FS, RE são respeitadas - não dá pra digitar hora
+            // por cima diretamente. Só editável através do long-press (que
+            // remove o readOnly temporariamente). O texto do status permanece
+            // visível e com a cor característica, sem risco de virar "FR5.5".
+            inp.disabled = false;
+            inp.readOnly = true;
             inp.placeholder = "";
         } else {
+            // 🔧 CORREÇÃO: SO ou célula vazia - livre pra digitar hora.
+            // Antes só limpava o texto se já estivesse vazio/zerado; agora
+            // limpa sempre que não há valor de hora real, garantindo que o
+            // texto do status (ex: "SO") suma de fato antes de digitar.
             inp.disabled = false;
+            inp.readOnly = false;
             inp.placeholder = "0,0";
             const valorAtual = parseHora(inp.value);
-            if (valorAtual === 0 && !getStatusFromValue(inp.value)) {
+            if (valorAtual === 0) {
                 inp.value = "";
             }
-            inp.removeAttribute('data-status');
-            inp.classList.remove('has-value');
         }
         atualizarCorInput(inp);
     });
@@ -507,6 +528,7 @@ function sairEdicaoDia() {
                 if (val === "" && status !== "") inp.value = status;
                 atualizarCorInput(inp);
                 inp.disabled = true;
+                inp.readOnly = false; // 🔧 CORREÇÃO: reseta readOnly ao sair da edição
             }
         });
         diaEditandoIndex = null;
@@ -538,7 +560,10 @@ function habilitarEdicaoStatus(inp, row, diaIndex) {
         return;
     }
 
+    // 🔧 CORREÇÃO: precisa tirar o readOnly (setado em ativarEdicaoDia) além do disabled,
+    // senão o campo continua bloqueado pra digitação mesmo com disabled=false.
     inp.disabled = false;
+    inp.readOnly = false;
     inp.classList.add('editando-longpress');
     inp.select();
     showToast(`✏️ Editando ${statusAtual} — digite novo status e pressione Enter`);
@@ -549,7 +574,8 @@ function habilitarEdicaoStatus(inp, row, diaIndex) {
             const novoValor = inp.value.trim().toUpperCase();
             if (novoValor && getStatusFromValue(novoValor)) {
                 inp.classList.remove('editando-longpress');
-                inp.disabled = true;
+                inp.readOnly = STATUS_EDITAVEL_LONGPRESS.includes(novoValor);
+                inp.disabled = isStatusBloqueado(novoValor);
                 inp.placeholder = "";
                 ESCALA_MENSAL[nome][diaIndex] = novoValor;
                 inp.setAttribute('data-status-original', novoValor);
@@ -572,7 +598,7 @@ function habilitarEdicaoStatus(inp, row, diaIndex) {
     };
     const onBlur = () => {
         inp.classList.remove('editando-longpress');
-        inp.disabled = true;
+        inp.readOnly = true;
         inp.placeholder = "";
         inp.value = statusAtual;
         atualizarCorInput(inp);
@@ -588,11 +614,10 @@ async function salvarStatusNoBackend(nome, dia, novoStatus) {
         const mesInput = document.getElementById('campoMes');
         const mesNome = mesInput.value.trim() || "Julho";
         const month = getMesNumero(mesNome);
-        const year = new Date().getFullYear();
         const response = await fetch('/api/update_status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pilot: nome, day: dia, status: novoStatus, month, year })
+            body: JSON.stringify({ pilot: nome, day: dia, status: novoStatus, month, year: anoAtual })
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
@@ -644,8 +669,7 @@ async function mostrarDisponiveis(diaRef) {
         const mesInput = document.getElementById('campoMes');
         const mesNome = mesInput.value.trim() || "Julho";
         const month = getMesNumero(mesNome);
-        const year = new Date().getFullYear();
-        const res = await fetch(`/api/available_commanders/${diaSeguinte}?month=${month}&year=${year}`);
+        const res = await fetch(`/api/available_commanders/${diaSeguinte}?month=${month}&year=${anoAtual}`);
         const data = await res.json();
         let html = `<div class="card-detalhe"><h2 style="text-align:center;">👥 Disponíveis — Dia ${String(diaSeguinte+1).padStart(2,'00')}</h2>`;
         const titulos = {
@@ -719,8 +743,7 @@ async function carregarDoBackend() {
     try {
         const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
         const mesNum = getMesNumero(mesNome);
-        const ano = new Date().getFullYear();
-        const url = `/api/data?month=${mesNum}&year=${ano}`;
+        const url = `/api/data?month=${mesNum}&year=${anoAtual}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -797,14 +820,14 @@ async function carregarDoBackend() {
                     inp.addEventListener('mouseleave', () => clearTimeout(mouseTimer));
 
                     inp.addEventListener('input', function() {
-                        if (diaEditandoIndex === i && isEditing && !this.disabled) {
+                        if (diaEditandoIndex === i && isEditing && !this.disabled && !this.readOnly) {
                             atualizarTotalLinha(row);
                             recalcularTudo();
                             if (password) salvarNoBackend();
                         }
                     });
                     inp.addEventListener('blur', function() {
-                        if (diaEditandoIndex === i && isEditing && !this.disabled) {
+                        if (diaEditandoIndex === i && isEditing && !this.disabled && !this.readOnly) {
                             const v = parseHora(this.value);
                             const st = getStatusFromValue(this.value.trim().toUpperCase());
                             if (v > 0) {
@@ -836,31 +859,50 @@ async function carregarDoBackend() {
     } catch(e) {
         console.error(e);
         document.getElementById('syncStatus').innerHTML = '❌ Erro';
+        showToast(`❌ Erro ao carregar: ${e.message}`, 4000);
     }
 }
 
 async function salvarNoBackend() {
     if (!isEditing || !password) return;
+    const syncSpan = document.getElementById('syncStatus');
+    syncSpan.innerHTML = '⏳ Salvando...';
     const logs = {};
     const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
     const month = getMesNumero(mesNome);
-    const year = new Date().getFullYear();
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
         const nome = getNomeFromRow(row);
         logs[nome] = {};
         row.querySelectorAll('.input-hora').forEach((inp, i) => {
             if (nome === "Daniela" && i === 1) return;
             const v = parseHora(inp.value);
-            if (v > 0) logs[nome][i+1] = v;
+            // 🔧 CORREÇÃO: antes só enviava dias com valor > 0, então "limpar"
+            // um valor já salvo nunca chegava a zerar no backend (o servidor
+            // simplesmente nunca recebia aquele dia). Agora sempre inclui o
+            // dia que está em edição no momento, mesmo que tenha virado 0,
+            // garantindo que o "limpar" realmente persista.
+            if (v > 0 || i === diaEditandoIndex) {
+                logs[nome][i+1] = v;
+            }
         });
     });
     try {
-        await fetch('/api/data', {
+        const resp = await fetch('/api/data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password, logs, month, year })
+            body: JSON.stringify({ password, logs, month, year: anoAtual })
         });
-    } catch(e) { console.error(e); }
+        const respData = await resp.json();
+        if (!resp.ok || !respData.success) {
+            throw new Error(respData.erro || `HTTP ${resp.status}`);
+        }
+        syncSpan.innerHTML = '✅ Salvo';
+        setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
+    } catch(e) {
+        console.error(e);
+        syncSpan.innerHTML = '❌ Erro ao salvar';
+        showToast(`❌ Erro ao salvar: ${e.message}`, 4000);
+    }
 }
 
 function criarBotoesDias() {
@@ -917,17 +959,17 @@ function mostrarAjuda() {
         { cor: '#ffb366', texto: 'DM / CM — Dispensa Médica / Revalidação' },
         { cor: '#99ccff', texto: 'VO / CQ / TN — Em Voo / Voo Cheque / Trein. Voo' },
         { cor: '#ffff99', texto: 'EA / TR — Exp. Administrativo / Trein. Solo' },
-        { cor: '#90ee90', texto: 'FR — Folga Regulamentar' },
-        { cor: '#ff9999', texto: 'FS — Folga Social' },
-        { cor: '#ccffcc', texto: 'FE — Férias' },
-        { cor: '#ffccff', texto: 'RE — Reserva na Empresa' },
-        { cor: '#ffffff', texto: 'SO — Sobreaviso' },
+        { cor: '#90ee90', texto: 'FR — Folga Regulamentar (protegida — só long press)' },
+        { cor: '#ff9999', texto: 'FS — Folga Social (protegida — só long press)' },
+        { cor: '#ccffcc', texto: 'FE — Férias (bloqueada)' },
+        { cor: '#ffccff', texto: 'RE — Reserva na Empresa (protegida — só long press)' },
+        { cor: '#ffffff', texto: 'SO — Sobreaviso (livre pra digitar horas)' },
     ];
     let html = `<div class="card-ajuda"><h3 style="text-align:center;">📖 Legenda</h3>`;
     itens.forEach(item => {
         html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:${item.cor};border:1px solid #ccc;">${item.texto.split('—')[0].trim()}</div><span>${item.texto.split('—')[1]?.trim() || ''}</span></div>`;
     });
-    html += `<hr><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
+    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;"><strong>Toque no dia</strong> → menu de opções<br><strong>Long press em FR/FS/RE</strong> → editar status</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
     const modal = document.createElement('div');
     modal.className = 'modal-ajuda';
     modal.innerHTML = html;
@@ -982,12 +1024,14 @@ function limpar() {
 }
 
 // ===== NAVEGAÇÃO ENTRE MESES =====
+// 🔧 CORREÇÃO: agora ajusta `anoAtual` ao cruzar a virada do ano (Dez↔Jan),
+// em vez de sempre assumir o ano corrente do sistema.
 document.getElementById('btnMesAnterior').addEventListener('click', function() {
     if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
     const mesAtual = document.getElementById('campoMes').value.trim();
     const mesNum = getMesNumero(mesAtual);
     let novoMesNum = mesNum - 1;
-    if (novoMesNum < 1) { novoMesNum = 12; }
+    if (novoMesNum < 1) { novoMesNum = 12; anoAtual -= 1; }
     const novoMesNome = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][novoMesNum-1];
     document.getElementById('campoMes').value = novoMesNome;
     salvarMesNoStorage(novoMesNome);
@@ -999,7 +1043,7 @@ document.getElementById('btnMesProximo').addEventListener('click', function() {
     const mesAtual = document.getElementById('campoMes').value.trim();
     const mesNum = getMesNumero(mesAtual);
     let novoMesNum = mesNum + 1;
-    if (novoMesNum > 12) { novoMesNum = 1; }
+    if (novoMesNum > 12) { novoMesNum = 1; anoAtual += 1; }
     const novoMesNome = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][novoMesNum-1];
     document.getElementById('campoMes').value = novoMesNome;
     salvarMesNoStorage(novoMesNome);
