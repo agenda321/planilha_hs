@@ -32,7 +32,11 @@ else:
         database_url = database_url.replace("postgres://", "postgresql://", 1)
 
     if "supabase" in database_url.lower():
-        match = re.search(r'://[^@]+@([^.]+)\.supabase\.co', database_url)
+        # Formato novo (pooler): postgresql://postgres.<ref>:senha@aws-x-region.pooler.supabase.com
+        match = re.search(r'postgres\.([a-zA-Z0-9]+)[:@]', database_url)
+        # Formato antigo (conexão direta): postgresql://postgres:senha@<ref>.supabase.co
+        if not match:
+            match = re.search(r'://[^@]+@([^.]+)\.supabase\.co', database_url)
         if match:
             project_id = match.group(1)
             print(f"🔑 Projeto Supabase detectado: {project_id}")
