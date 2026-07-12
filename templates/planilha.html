@@ -777,11 +777,10 @@ async function carregarDoBackend() {
                     inp.inputMode = 'decimal';
                     inp.classList.add('input-hora');
                     inp.placeholder = '';
-                    
+
                     let valor = data.logs[p.name]?.[i+1] || 0;
-                    if (p.name === "Daniela" && i === 1) valor = 0;
                     const statusOriginal = ESCALA_MENSAL[p.name]?.[i] || "";
-                    
+
                     if (valor > 0) {
                         inp.value = formatarHora(valor);
                         total += valor;
@@ -790,7 +789,7 @@ async function carregarDoBackend() {
                     } else {
                         inp.value = "";
                     }
-                    
+
                     atualizarCorInput(inp);
                     inp.disabled = true;
 
@@ -869,7 +868,6 @@ async function salvarNoBackend() {
         const nome = getNomeFromRow(row);
         logs[nome] = {};
         row.querySelectorAll('.input-hora').forEach((inp, i) => {
-            if (nome === "Daniela" && i === 1) return;
             const v = parseHora(inp.value);
             if (v > 0 || i === diaEditandoIndex) {
                 logs[nome][i+1] = v;
