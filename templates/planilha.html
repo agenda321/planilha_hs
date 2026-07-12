@@ -864,6 +864,41 @@ async function carregarDoBackend() {
 }
 
 async function salvarNoBackend() {
+    if (!isEditing || !password || diaEditandoIndex === null) return;
+    const syncSpan = document.getElementById('syncStatus');
+    syncSpan.innerHTML = '⏳ Salvando...';
+    const logs = {};
+    const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+    const month = getMesNumero(mesNome);
+    // Envia apenas a coluna do dia atualmente em edição (não a planilha inteira),
+    // para manter a requisição pequena e rápida.
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const nome = getNomeFromRow(row);
+        const inp = row.cells[diaEditandoIndex + 1]?.querySelector('.input-hora');
+        if (!inp) return;
+        const v = parseHora(inp.value);
+        logs[nome] = { [diaEditandoIndex + 1]: v };
+    });
+    try {
+        const resp = await fetch('/api/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password, logs, month, year: anoAtual })
+        });
+        const respData = await resp.json();
+        if (!resp.ok || !respData.success) {
+            throw new Error(respData.erro || `HTTP ${resp.status}`);
+        }
+        syncSpan.innerHTML = '✅ Salvo';
+        setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
+    } catch(e) {
+        console.error(e);
+        syncSpan.innerHTML = '❌ Erro ao salvar';
+        showToast(`❌ Erro ao salvar: ${e.message}`, 4000);
+    }
+}
+
+async function salvarTudoNoBackend() {
     if (!isEditing || !password) return;
     const syncSpan = document.getElementById('syncStatus');
     syncSpan.innerHTML = '⏳ Salvando...';
@@ -1012,7 +1047,7 @@ function limpar() {
             atualizarCorInput(inp);
         });
         recalcularTudo();
-        salvarNoBackend();
+        salvarTudoNoBackend();
         showToast("🧹 Valores limpos.");
     }
 }
