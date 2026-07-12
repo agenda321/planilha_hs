@@ -817,7 +817,10 @@ async function carregarDoBackend() {
                         if (diaEditandoIndex === i && isEditing && !this.disabled && !this.readOnly) {
                             atualizarTotalLinha(row);
                             recalcularTudo();
-                            if (password) salvarNoBackend();
+                            if (password) {
+                                clearTimeout(window._salvarDebounce);
+                                window._salvarDebounce = setTimeout(salvarNoBackend, 700);
+                            }
                         }
                     });
                     inp.addEventListener('blur', function() {
@@ -832,7 +835,10 @@ async function carregarDoBackend() {
                             atualizarCorInput(this);
                             atualizarTotalLinha(row);
                             recalcularTudo();
-                            if (password) salvarNoBackend();
+                            if (password) {
+                                clearTimeout(window._salvarDebounce);
+                                salvarNoBackend();
+                            }
                         }
                     });
                     td.appendChild(inp);
