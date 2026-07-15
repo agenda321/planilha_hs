@@ -364,26 +364,6 @@ function getGrupo(nome) {
     return "CESSNA 206/210";
 }
 
-// ===== HELPERS DO RANKING (NOVO) =====
-function agruparEOrdenarPorHoras(pilotos, calcTotal) {
-  const grupos = {"CESSNA 206/210":[], "CARAVAN":[], "COPILOTO":[]};
-  pilotos.forEach(p => {
-    const g = getGrupo(p.nome || p.name);
-    grupos[g].push({nome: p.nome || p.name, total: calcTotal(p), status: p.status || ""});
-  });
-  Object.keys(grupos).forEach(g => grupos[g].sort((a,b) => b.total - a.total));
-  return grupos;
-}
-
-function getBadgeStyle(status) {
-  if (status === 'FR') return 'background:#90ee90;color:#004d00;border:1px solid #008000;font-weight:bold;';
-  if (status === 'FS') return 'background:#ff9999;color:#660000;border:1px solid #cc0000;font-weight:bold;';
-  if (status === 'FE') return 'background:#ccffcc;color:#006600;border:1px solid #00cc00;font-weight:bold;';
-  if (status === 'RE') return 'background:#ffccff;color:#660066;border:1px solid #cc66cc;font-weight:bold;';
-  if (status === 'SO') return 'background:#e0f7fa;color:#006064;border:1px solid #00838f;font-weight:bold;';
-  return 'background:#ffffff;color:#333;border:1px solid #999;';
-}
-
 const STATUS_BLOQUEADOS = ["DM","CM","EA","FE","TR","TN","CQ"];
 const STATUS_EDITAVEL_LONGPRESS = ["FS","RE","FR"];
 function isStatusBloqueado(status) { return STATUS_BLOQUEADOS.includes(status); }
@@ -469,6 +449,11 @@ function validarStreaks() {
 }
 
 // ===== CONTADOR DE FOLGAS =====
+// Determina até que dia (índice, exclusive) o contador deve olhar, de acordo
+// com o mês/ano atualmente exibido em relação ao mês/ano real de hoje:
+//  - Mês exibido == mês atual real  -> conta até ontem (dia atual não fechado ainda)
+//  - Mês exibido no passado         -> conta o mês inteiro
+//  - Mês exibido no futuro          -> ainda não conta nada (0)
 function getLimiteDiasContagem() {
     const hoje = new Date();
     const mesReal = hoje.getMonth() + 1;
@@ -485,6 +470,8 @@ function getLimiteDiasContagem() {
     return 0;
 }
 
+// Conta como folga qualquer dia marcado FR, FS, SO ou RE em que o piloto
+// não tenha horas efetivamente lançadas (ou seja, não voou naquele dia).
 function contarFolgas(nomePiloto, row) {
     const limite = getLimiteDiasContagem();
     let count = 0;
@@ -504,14 +491,17 @@ function atualizarTodosContadores() {
         const nome = getNomeFromRow(row);
         const count = contarFolgas(nome, row);
         const tdNome = row.cells[0];
+        // Remove badge antigo se existir
         let badge = tdNome.querySelector('.folga-badge');
         if (!badge) {
             badge = document.createElement('span');
             badge.className = 'folga-badge';
             tdNome.appendChild(badge);
         }
+        // Formata sobrescrito
         const digits = String(count).split('').map(d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[parseInt(d)]).join('');
         badge.textContent = digits;
+        // Aplica classe de cor
         badge.className = 'folga-badge';
         if (count < 8) badge.classList.add('normal');
         else if (count === 8) badge.classList.add('igual8');
@@ -525,10 +515,11 @@ function recalcularTudo() {
     const tfoot = document.getElementById('tfootTotal');
     tfoot.innerHTML = '';
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td style="font-weight:bold">🏁 TOTAL GERAL</td>\( {'<td></td>'.repeat(DIAS)}<td class="total-geral"> \){formatarHora(soma)}</td>`;
+    tr.innerHTML = `<td style="font-weight:bold">🏁 TOTAL GERAL</td>${'<td></td>'.repeat(DIAS)}<td class="total-geral">${formatarHora(soma)}</td>`;
     tfoot.appendChild(tr);
     validarStreaks();
     atualizarTotaisBotoesDias();
+    // Atualiza contadores de folgas
     atualizarTodosContadores();
 }
 
@@ -568,6 +559,9 @@ function ativarEdicaoDia(diaIndex) {
             inp.disabled = false;
             inp.readOnly = false;
             inp.placeholder = "0,0";
+            // Só limpa o campo se ele estiver vazio/zerado E não estiver
+            // exibindo um status válido (ex.: "FS") — evita apagar a label
+            // de status logo após confirmar uma troca via long-press.
             const valorTexto = inp.value.trim();
             const ehStatusValido = !!getStatusFromValue(valorTexto.toUpperCase());
             const valorNumerico = parseHora(valorTexto);
@@ -708,51 +702,67 @@ async function salvarStatusNoBackend(nome, dia, novoStatus) {
     }
 }
 
-// ===== MOSTRAR COMPARATIVO (RANKING AGORA IGUAL À LISTA DE DISPONÍVEIS) =====
 function mostrarComparativoDia(diaIndex) {
-  const mesAtual = document.getElementById('campoMes').value.trim() || "Julho";
-  const pilotos = [];
-  document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
-    const nome = getNomeFromRow(row);
-    let total = 0;
-    row.querySelectorAll('.input-hora').forEach(inp => total += parseHora(inp.value));
-    const status = ESCALA_MENSAL[nome]?.[diaIndex] || "";
-    pilotos.push({ nome, total, status });
-  });
-
-  const gruposOrdenados = agruparEOrdenarPorHoras(pilotos, p => p.total);
-
-  let html = `<div class="card-detalhe"><h2 style="text-align:center;">📊 Horas Acumuladas — ${mesAtual}</h2>`;
-
-  const titulos = {
-    "CESSNA 206/210": "🔹 CMTES CESSNA 206/210",
-    "CARAVAN": "🛩️ CMTES CARAVAN 208",
-    "COPILOTO": "📋 COPILOTOS CARAVAN"
-  };
-
-  for (let grupo of ["CESSNA 206/210", "CARAVAN", "COPILOTO"]) {
-    const lista = gruposOrdenados[grupo] || [];
-    if (lista.length === 0) continue;
-    html += `<h3 style="margin-top:16px;color:#3b2a1f;border-bottom:2px solid #ccaa7a;">${titulos[grupo]}</h3><ul style="margin:4px 0 12px 0;padding-left:0;list-style:none;">`;
-    lista.forEach((p, idx) => {
-      const badgeStyle = getBadgeStyle(p.status);
-      const horasDisplay = p.total === 0 ? '—' : formatarHora(p.total);
-      const medalha = idx === 0 ? '🥇 ' : idx === 1 ? '🥈 ' : idx === 2 ? '🥉 ' : '';
-      html += `<li style="padding:6px 8px;display:flex;justify-content:space-between;border-bottom:1px solid #e8d5b0;">
-        <span><strong>\( {medalha} \){p.nome}</strong> <span style="padding:2px 8px;border-radius:12px;font-size:0.65rem;\( {badgeStyle}"> \){p.status || '—'}</span></span>
-        <strong>${horasDisplay}</strong>
-      </li>`;
+    const mesAtual = document.getElementById('campoMes').value.trim() || "Julho";
+    const pilotos = [];
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const nome = getNomeFromRow(row);
+        let total = 0;
+        row.querySelectorAll('.input-hora').forEach(inp => total += parseHora(inp.value));
+        const status = ESCALA_MENSAL[nome]?.[diaIndex] || "";
+        const grupo = getGrupo(nome);
+        pilotos.push({ nome, total, status, grupo });
     });
-    html += `</ul>`;
-  }
 
-  html += `<button class="btn-fechar" id="fecharDetalhe">Fechar</button></div>`;
-  const modal = document.createElement('div');
-  modal.className = 'modal-detalhe';
-  modal.innerHTML = html;
-  document.body.appendChild(modal);
-  modal.querySelector('#fecharDetalhe').onclick = () => modal.remove();
-  modal.onclick = e => { if (e.target === modal) modal.remove(); };
+    // Separa por grupo
+    const grupos = ["CESSNA 206/210", "CARAVAN", "COPILOTO"];
+    const dadosPorGrupo = {};
+    grupos.forEach(g => dadosPorGrupo[g] = []);
+    pilotos.forEach(p => {
+        if (dadosPorGrupo[p.grupo]) dadosPorGrupo[p.grupo].push(p);
+        else dadosPorGrupo["CESSNA 206/210"].push(p); // fallback
+    });
+
+    // Ordena cada grupo por total decrescente
+    for (let g in dadosPorGrupo) {
+        dadosPorGrupo[g].sort((a,b) => b.total - a.total);
+    }
+
+    let html = `<div class="card-detalhe"><h2 style="text-align:center;">📊 Horas Acumuladas — ${mesAtual}</h2>`;
+
+    const titulos = {
+        "CESSNA 206/210": "🔹 CMTES CESSNA 206/210",
+        "CARAVAN": "🛩️ CMTES CARAVAN 208",
+        "COPILOTO": "📋 COPILOTOS CARAVAN"
+    };
+
+    for (let grupo of grupos) {
+        const lista = dadosPorGrupo[grupo] || [];
+        if (lista.length === 0) continue;
+        const maxTotal = Math.max(...lista.map(p => p.total), 0.1);
+        html += `<h3 style="margin-top:16px;color:#3b2a1f;border-bottom:2px solid #ccaa7a;">${titulos[grupo]}</h3>`;
+        html += `<div style="overflow-x:auto;"><table class="tabela-detalhe"><thead><tr><th>#</th><th>Piloto</th><th>Horas</th><th>Progresso</th></tr></thead><tbody>`;
+        lista.forEach((p, idx) => {
+            const perc = maxTotal > 0 ? (p.total / maxTotal) * 100 : 0;
+            const horasDisplay = p.total === 0 ? '—' : formatarHora(p.total);
+            let medalha = idx === 0 ? '🥇 ' : idx === 1 ? '🥈 ' : idx === 2 ? '🥉 ' : '';
+            let bgColor = '', textColor = '';
+            if (p.status === 'FR') { bgColor = '#90ee90'; textColor = '#004d00'; }
+            else if (p.status === 'FS') { bgColor = '#ff9999'; textColor = '#660000'; }
+            else if (p.status === 'FE') { bgColor = '#ccffcc'; textColor = '#006600'; }
+            const rowStyle = bgColor ? `style="background-color:${bgColor};"` : '';
+            html += `<tr ${rowStyle}><td style="text-align:center;color:${textColor||'inherit'}">${idx+1}</td><td style="color:${textColor||'inherit'}">${medalha}${p.nome}</td><td style="color:${textColor||(p.total>0?'#2a8a2a':'#aaa')}">${horasDisplay}</td><td><div class="progress-bar-wrap"><div class="barra-fill" style="width:${perc}%"></div></div></td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+    }
+
+    html += `<button class="btn-fechar" id="fecharDetalhe">Fechar</button></div>`;
+    const modal = document.createElement('div');
+    modal.className = 'modal-detalhe';
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    modal.querySelector('#fecharDetalhe').onclick = () => modal.remove();
+    modal.onclick = e => { if (e.target === modal) modal.remove(); };
 }
 
 async function mostrarDisponiveis(diaRef) {
@@ -763,7 +773,7 @@ async function mostrarDisponiveis(diaRef) {
         const mesInput = document.getElementById('campoMes');
         const mesNome = mesInput.value.trim() || "Julho";
         const month = getMesNumero(mesNome);
-        const res = await fetch(`/api/available_commanders/\( {diaSeguinte}?month= \){month}&year=${anoAtual}`);
+        const res = await fetch(`/api/available_commanders/${diaSeguinte}?month=${month}&year=${anoAtual}`);
         const data = await res.json();
         let html = `<div class="card-detalhe"><h2 style="text-align:center;">👥 Disponíveis — Dia ${String(diaSeguinte+1).padStart(2,'00')}</h2>`;
         const titulos = {
@@ -784,7 +794,7 @@ async function mostrarDisponiveis(diaRef) {
                     if (c.status === 'RE') badgeStyle = 'background:#ffccff; color:#660066; border:1px solid #cc66cc; font-weight:bold;';
                     if (c.status === 'SO') badgeStyle = 'background:#e0f7fa; color:#006064; border:1px solid #00838f; font-weight:bold;';
                     html += `<li style="padding:6px 8px;display:flex;justify-content:space-between;border-bottom:1px solid #e8d5b0;">
-                        <span><strong>\( {c.name}</strong> <span style="padding:2px 8px;border-radius:12px;font-size:0.65rem; \){badgeStyle}">${c.status}</span></span>
+                        <span><strong>${c.name}</strong> <span style="padding:2px 8px;border-radius:12px;font-size:0.65rem;${badgeStyle}">${c.status}</span></span>
                         <strong>${c.horas_totais.toFixed(1)}h</strong>
                     </li>`;
                 });
@@ -837,7 +847,7 @@ async function carregarDoBackend() {
     try {
         const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
         const mesNum = getMesNumero(mesNome);
-        const url = `/api/data?month=\( {mesNum}&year= \){anoAtual}`;
+        const url = `/api/data?month=${mesNum}&year=${anoAtual}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -846,12 +856,13 @@ async function carregarDoBackend() {
             throw new Error('Resposta incompleta de dados');
         }
 
+        // === MUDANÇA 3: escala vem do backend ===
         ESCALA_MENSAL = data.escala || {};
 
         atualizarDias();
 
         const thead = document.getElementById('tableHeader');
-        thead.innerHTML = `<tr><th>👤 PILOTO</th>\( {Array.from({length:DIAS},(_,i)=>`<th> \){String(i+1).padStart(2,'00')}</th>`).join('')}<th>⭐ TOTAL</th></tr>`;
+        thead.innerHTML = `<tr><th>👤 PILOTO</th>${Array.from({length:DIAS},(_,i)=>`<th>${String(i+1).padStart(2,'00')}</th>`).join('')}<th>⭐ TOTAL</th></tr>`;
 
         const tbody = document.getElementById('planilhaBody');
         tbody.innerHTML = '';
@@ -865,7 +876,7 @@ async function carregarDoBackend() {
         for (let grupo of ["CESSNA 206/210","CARAVAN","COPILOTO"]) {
             const titleRow = document.createElement('tr');
             titleRow.classList.add('group-title-row');
-            titleRow.innerHTML = `<td colspan="\( {DIAS+2}"><i class="fas fa- \){grupo==="COPILOTO"?"headset":"plane"}"></i> ${grupo}</td>`;
+            titleRow.innerHTML = `<td colspan="${DIAS+2}"><i class="fas fa-${grupo==="COPILOTO"?"headset":"plane"}"></i> ${grupo}</td>`;
             tbody.appendChild(titleRow);
             for (let p of grupos[grupo]) {
                 const row = document.createElement('tr');
@@ -901,6 +912,7 @@ async function carregarDoBackend() {
                         inp.setAttribute('data-original-status', statusOriginal);
                     }
 
+                    // ===== LONG PRESS =====
                     let lpTimer = null;
                     inp.addEventListener('touchstart', () => {
                         if (!isEditing || diaEditandoIndex !== i) return;
@@ -973,6 +985,7 @@ async function salvarNoBackend() {
     const logs = {};
     const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
     const month = getMesNumero(mesNome);
+    // Envia apenas a coluna do dia atualmente em edição
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
         const nome = getNomeFromRow(row);
         const inp = row.cells[diaEditandoIndex + 1]?.querySelector('.input-hora');
@@ -1097,7 +1110,7 @@ function mostrarAjuda() {
     ];
     let html = `<div class="card-ajuda"><h3 style="text-align:center;">📖 Legenda</h3>`;
     itens.forEach(item => {
-        html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:\( {item.cor};border:1px solid #ccc;"> \){item.texto.split('—')[0].trim()}</div><span>${item.texto.split('—')[1]?.trim() || ''}</span></div>`;
+        html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:${item.cor};border:1px solid #ccc;">${item.texto.split('—')[0].trim()}</div><span>${item.texto.split('—')[1]?.trim() || ''}</span></div>`;
     });
     html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;"><strong>Toque no dia</strong> → menu<br><strong>Modo edição</strong> → digite horas direto em FR/FS/RE<br><strong>Long press</strong> → trocar status</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
     const modal = document.createElement('div');
@@ -1195,6 +1208,18 @@ document.getElementById('campoMes').addEventListener('change', function() {
     }
 });
 
+// =====================================================================
+// ===== TEMPO REAL (Socket.IO) ==========================================
+// =====================================================================
+// Requer que o backend (app.py) tenha Flask-SocketIO habilitado e emita,
+// após cada commit no banco, os eventos:
+//   - 'logs_atualizados' com payload { pilot, day, value, month, year }
+//   - 'status_atualizado' com payload { pilot, day, status, month, year }
+// Também é esperado que o cliente possa entrar numa "sala" por mês/ano via
+// evento 'join_month' com { month, year }, para não receber updates de
+// meses que não está olhando. Se o backend ainda não emitir esses eventos,
+// o app continua funcionando normalmente no modo antigo (salvar por fetch),
+// apenas sem o indicador de tempo real ativo.
 let socket = null;
 
 function iniciarSocket() {
@@ -1204,6 +1229,9 @@ function iniciarSocket() {
     }
     if (socket) return;
 
+    // Apenas polling: o backend roda em gunicorn com worker gthread
+    // (sem eventlet/gevent), então upgrade para WebSocket não é suportado.
+    // Long-polling entrega o mesmo resultado prático (~1-2s de latência).
     socket = io({ transports: ['polling'] });
 
     socket.on('connect', () => {
@@ -1242,11 +1270,16 @@ function payloadEhDoMesAtual(payload) {
     return Number(payload.month) === Number(mesAtualNum) && Number(payload.year) === Number(anoAtual);
 }
 
+// Atualiza uma única célula de horas recebida de outro dispositivo, sem
+// recarregar a tabela inteira — evita "piscar" a tela e mantém o campo
+// que o usuário local estiver editando intacto.
 function aplicarAtualizacaoRemotaDeHoras(payload) {
     if (!payloadEhDoMesAtual(payload)) return;
     const { pilot, day, value } = payload;
     if (!pilot || !day) return;
 
+    // Não sobrescreve o campo se for exatamente o dia que este usuário
+    // está editando agora (evita conflito visual com a digitação local).
     if (diaEditandoIndex === (day - 1) && isEditing) return;
 
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
