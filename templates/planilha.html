@@ -261,6 +261,20 @@
             pointer-events: none; white-space: nowrap; max-width: 90vw;
         }
         .toast.show { opacity: 1; }
+
+        /* Estilo do badge de contagem de folgas */
+        .folga-badge {
+            font-size: 0.65rem;
+            margin-left: 4px;
+            font-weight: bold;
+        }
+        .folga-badge.normal { color: #3b2a1f; }
+        .folga-badge.igual8 { color: #e6a800; font-weight: bold; }
+        .folga-badge.acima8 { color: #cc0000; font-weight: bold; }
+
+        /* Indicador de conexão em tempo real */
+        .sync-status.rt-on { background: #1b5e20; }
+        .sync-status.rt-off { background: #6d4c1f; }
     </style>
 </head>
 <body>
@@ -314,6 +328,7 @@
     </div>
 </div>
 
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
 // ===== TOAST =====
 function showToast(msg, duracao = 2500) {
@@ -433,6 +448,67 @@ function validarStreaks() {
     });
 }
 
+// ===== CONTADOR DE FOLGAS =====
+// Determina até que dia (índice, exclusive) o contador deve olhar, de acordo
+// com o mês/ano atualmente exibido em relação ao mês/ano real de hoje:
+//  - Mês exibido == mês atual real  -> conta até ontem (dia atual não fechado ainda)
+//  - Mês exibido no passado         -> conta o mês inteiro
+//  - Mês exibido no futuro          -> ainda não conta nada (0)
+function getLimiteDiasContagem() {
+    const hoje = new Date();
+    const mesReal = hoje.getMonth() + 1;
+    const anoReal = hoje.getFullYear();
+    const mesExibidoNome = document.getElementById('campoMes').value.trim() || "Julho";
+    const mesExibido = getMesNumero(mesExibidoNome);
+
+    if (anoAtual === anoReal && mesExibido === mesReal) {
+        return hoje.getDate();
+    }
+    if (anoAtual < anoReal || (anoAtual === anoReal && mesExibido < mesReal)) {
+        return DIAS;
+    }
+    return 0;
+}
+
+// Conta como folga qualquer dia marcado FR, FS, SO ou RE em que o piloto
+// não tenha horas efetivamente lançadas (ou seja, não voou naquele dia).
+function contarFolgas(nomePiloto, row) {
+    const limite = getLimiteDiasContagem();
+    let count = 0;
+    for (let i = 0; i < limite; i++) {
+        const status = ESCALA_MENSAL[nomePiloto]?.[i] || "";
+        const contaComoFolga = (status === "FR" || status === "FS" || status === "SO" || status === "RE");
+        if (!contaComoFolga) continue;
+        const inp = row.cells[i+1]?.querySelector('.input-hora');
+        const horas = inp ? parseHora(inp.value) : 0;
+        if (horas === 0) count++;
+    }
+    return count;
+}
+
+function atualizarTodosContadores() {
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const nome = getNomeFromRow(row);
+        const count = contarFolgas(nome, row);
+        const tdNome = row.cells[0];
+        // Remove badge antigo se existir
+        let badge = tdNome.querySelector('.folga-badge');
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'folga-badge';
+            tdNome.appendChild(badge);
+        }
+        // Formata sobrescrito
+        const digits = String(count).split('').map(d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[parseInt(d)]).join('');
+        badge.textContent = digits;
+        // Aplica classe de cor
+        badge.className = 'folga-badge';
+        if (count < 8) badge.classList.add('normal');
+        else if (count === 8) badge.classList.add('igual8');
+        else badge.classList.add('acima8');
+    });
+}
+
 function recalcularTudo() {
     let soma = 0;
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => soma += atualizarTotalLinha(row));
@@ -443,6 +519,8 @@ function recalcularTudo() {
     tfoot.appendChild(tr);
     validarStreaks();
     atualizarTotaisBotoesDias();
+    // Atualiza contadores de folgas
+    atualizarTodosContadores();
 }
 
 function totalHorasDia(diaIndex) {
@@ -481,8 +559,13 @@ function ativarEdicaoDia(diaIndex) {
             inp.disabled = false;
             inp.readOnly = false;
             inp.placeholder = "0,0";
-            const valorAtual = parseHora(inp.value);
-            if (valorAtual === 0) {
+            // Só limpa o campo se ele estiver vazio/zerado E não estiver
+            // exibindo um status válido (ex.: "FS") — evita apagar a label
+            // de status logo após confirmar uma troca via long-press.
+            const valorTexto = inp.value.trim();
+            const ehStatusValido = !!getStatusFromValue(valorTexto.toUpperCase());
+            const valorNumerico = parseHora(valorTexto);
+            if (valorNumerico === 0 && !ehStatusValido) {
                 inp.value = "";
             }
             if (status) inp.setAttribute('data-original-status', status);
@@ -569,7 +652,7 @@ function habilitarEdicaoStatus(inp, row, diaIndex) {
                 inp.disabled = isStatusBloqueado(novoValor);
                 inp.placeholder = "";
                 ESCALA_MENSAL[nome][diaIndex] = novoValor;
-                inp.setAttribute('data-status-original', novoValor);
+                inp.setAttribute('data-original-status', novoValor);
                 atualizarCorInput(inp);
                 try {
                     await salvarStatusNoBackend(nome, diaIndex, novoValor);
@@ -627,23 +710,53 @@ function mostrarComparativoDia(diaIndex) {
         let total = 0;
         row.querySelectorAll('.input-hora').forEach(inp => total += parseHora(inp.value));
         const status = ESCALA_MENSAL[nome]?.[diaIndex] || "";
-        pilotos.push({ nome, total, status });
+        const grupo = getGrupo(nome);
+        pilotos.push({ nome, total, status, grupo });
     });
-    pilotos.sort((a, b) => b.total - a.total);
-    const maxTotal = Math.max(...pilotos.map(p => p.total), 0.1);
-    let html = `<div class="card-detalhe"><h2 style="text-align:center;">📊 Horas Acumuladas — ${mesAtual}</h2><div style="overflow-x:auto;"><table class="tabela-detalhe"><thead><tr><th>#</th><th>Piloto</th><th>Horas</th><th>Progresso</th></tr></thead><tbody>`;
-    pilotos.forEach((p, idx) => {
-        const perc = maxTotal > 0 ? (p.total / maxTotal) * 100 : 0;
-        const horasDisplay = p.total === 0 ? '—' : formatarHora(p.total);
-        let medalha = idx === 0 ? '🥇 ' : idx === 1 ? '🥈 ' : idx === 2 ? '🥉 ' : '';
-        let bgColor = '', textColor = '';
-        if (p.status === 'FR') { bgColor = '#90ee90'; textColor = '#004d00'; }
-        else if (p.status === 'FS') { bgColor = '#ff9999'; textColor = '#660000'; }
-        else if (p.status === 'FE') { bgColor = '#ccffcc'; textColor = '#006600'; }
-        const rowStyle = bgColor ? `style="background-color:${bgColor};"` : '';
-        html += `<tr ${rowStyle}><td style="text-align:center;color:${textColor||'inherit'}">${idx+1}</td><td style="color:${textColor||'inherit'}">${medalha}${p.nome}</td><td style="color:${textColor||(p.total>0?'#2a8a2a':'#aaa')}">${horasDisplay}</td><td><div class="progress-bar-wrap"><div class="barra-fill" style="width:${perc}%"></div></div></td></tr>`;
+
+    // Separa por grupo
+    const grupos = ["CESSNA 206/210", "CARAVAN", "COPILOTO"];
+    const dadosPorGrupo = {};
+    grupos.forEach(g => dadosPorGrupo[g] = []);
+    pilotos.forEach(p => {
+        if (dadosPorGrupo[p.grupo]) dadosPorGrupo[p.grupo].push(p);
+        else dadosPorGrupo["CESSNA 206/210"].push(p); // fallback
     });
-    html += `</tbody></table></div><button class="btn-fechar" id="fecharDetalhe">Fechar</button></div>`;
+
+    // Ordena cada grupo por total decrescente
+    for (let g in dadosPorGrupo) {
+        dadosPorGrupo[g].sort((a,b) => b.total - a.total);
+    }
+
+    let html = `<div class="card-detalhe"><h2 style="text-align:center;">📊 Horas Acumuladas — ${mesAtual}</h2>`;
+
+    const titulos = {
+        "CESSNA 206/210": "🔹 CMTES CESSNA 206/210",
+        "CARAVAN": "🛩️ CMTES CARAVAN 208",
+        "COPILOTO": "📋 COPILOTOS CARAVAN"
+    };
+
+    for (let grupo of grupos) {
+        const lista = dadosPorGrupo[grupo] || [];
+        if (lista.length === 0) continue;
+        const maxTotal = Math.max(...lista.map(p => p.total), 0.1);
+        html += `<h3 style="margin-top:16px;color:#3b2a1f;border-bottom:2px solid #ccaa7a;">${titulos[grupo]}</h3>`;
+        html += `<div style="overflow-x:auto;"><table class="tabela-detalhe"><thead><tr><th>#</th><th>Piloto</th><th>Horas</th><th>Progresso</th></tr></thead><tbody>`;
+        lista.forEach((p, idx) => {
+            const perc = maxTotal > 0 ? (p.total / maxTotal) * 100 : 0;
+            const horasDisplay = p.total === 0 ? '—' : formatarHora(p.total);
+            let medalha = idx === 0 ? '🥇 ' : idx === 1 ? '🥈 ' : idx === 2 ? '🥉 ' : '';
+            let bgColor = '', textColor = '';
+            if (p.status === 'FR') { bgColor = '#90ee90'; textColor = '#004d00'; }
+            else if (p.status === 'FS') { bgColor = '#ff9999'; textColor = '#660000'; }
+            else if (p.status === 'FE') { bgColor = '#ccffcc'; textColor = '#006600'; }
+            const rowStyle = bgColor ? `style="background-color:${bgColor};"` : '';
+            html += `<tr ${rowStyle}><td style="text-align:center;color:${textColor||'inherit'}">${idx+1}</td><td style="color:${textColor||'inherit'}">${medalha}${p.nome}</td><td style="color:${textColor||(p.total>0?'#2a8a2a':'#aaa')}">${horasDisplay}</td><td><div class="progress-bar-wrap"><div class="barra-fill" style="width:${perc}%"></div></div></td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+    }
+
+    html += `<button class="btn-fechar" id="fecharDetalhe">Fechar</button></div>`;
     const modal = document.createElement('div');
     modal.className = 'modal-detalhe';
     modal.innerHTML = html;
@@ -743,7 +856,9 @@ async function carregarDoBackend() {
             throw new Error('Resposta incompleta de dados');
         }
 
+        // === MUDANÇA 3: escala vem do backend ===
         ESCALA_MENSAL = data.escala || {};
+
         atualizarDias();
 
         const thead = document.getElementById('tableHeader');
@@ -870,8 +985,7 @@ async function salvarNoBackend() {
     const logs = {};
     const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
     const month = getMesNumero(mesNome);
-    // Envia apenas a coluna do dia atualmente em edição (não a planilha inteira),
-    // para manter a requisição pequena e rápida.
+    // Envia apenas a coluna do dia atualmente em edição
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
         const nome = getNomeFromRow(row);
         const inp = row.cells[diaEditandoIndex + 1]?.querySelector('.input-hora');
@@ -1043,7 +1157,7 @@ function limpar() {
     if (!isEditing) return;
     if (confirm("Limpar todos os valores de horas?")) {
         document.querySelectorAll('.input-hora').forEach(inp => {
-            inp.value = inp.getAttribute('data-status-original') || "";
+            inp.value = inp.getAttribute('data-original-status') || "";
             atualizarCorInput(inp);
         });
         recalcularTudo();
@@ -1063,6 +1177,7 @@ document.getElementById('btnMesAnterior').addEventListener('click', function() {
     document.getElementById('campoMes').value = novoMesNome;
     salvarMesNoStorage(novoMesNome);
     carregarDoBackend();
+    entrarNaSalaDoMes();
 });
 
 document.getElementById('btnMesProximo').addEventListener('click', function() {
@@ -1075,6 +1190,7 @@ document.getElementById('btnMesProximo').addEventListener('click', function() {
     document.getElementById('campoMes').value = novoMesNome;
     salvarMesNoStorage(novoMesNome);
     carregarDoBackend();
+    entrarNaSalaDoMes();
 });
 
 // ===== INICIALIZAÇÃO =====
@@ -1088,8 +1204,119 @@ document.getElementById('campoMes').addEventListener('change', function() {
     if (isEditing) {
         salvarMesNoStorage(this.value);
         carregarDoBackend();
+        entrarNaSalaDoMes();
     }
 });
+
+// =====================================================================
+// ===== TEMPO REAL (Socket.IO) ==========================================
+// =====================================================================
+// Requer que o backend (app.py) tenha Flask-SocketIO habilitado e emita,
+// após cada commit no banco, os eventos:
+//   - 'logs_atualizados' com payload { pilot, day, value, month, year }
+//   - 'status_atualizado' com payload { pilot, day, status, month, year }
+// Também é esperado que o cliente possa entrar numa "sala" por mês/ano via
+// evento 'join_month' com { month, year }, para não receber updates de
+// meses que não está olhando. Se o backend ainda não emitir esses eventos,
+// o app continua funcionando normalmente no modo antigo (salvar por fetch),
+// apenas sem o indicador de tempo real ativo.
+let socket = null;
+
+function iniciarSocket() {
+    if (typeof io === 'undefined') {
+        console.warn('Socket.IO não carregado — seguindo apenas com fetch/debounce.');
+        return;
+    }
+    if (socket) return;
+
+    // Apenas polling: o backend roda em gunicorn com worker gthread
+    // (sem eventlet/gevent), então upgrade para WebSocket não é suportado.
+    // Long-polling entrega o mesmo resultado prático (~1-2s de latência).
+    socket = io({ transports: ['polling'] });
+
+    socket.on('connect', () => {
+        marcarStatusTempoReal(true);
+        entrarNaSalaDoMes();
+    });
+
+    socket.on('disconnect', () => marcarStatusTempoReal(false));
+    socket.on('connect_error', () => marcarStatusTempoReal(false));
+
+    socket.on('logs_atualizados', (payload) => {
+        aplicarAtualizacaoRemotaDeHoras(payload);
+    });
+
+    socket.on('status_atualizado', (payload) => {
+        aplicarAtualizacaoRemotaDeStatus(payload);
+    });
+}
+
+function entrarNaSalaDoMes() {
+    if (!socket || !socket.connected) return;
+    const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+    socket.emit('join_month', { month: getMesNumero(mesNome), year: anoAtual });
+}
+
+function marcarStatusTempoReal(ativo) {
+    const syncSpan = document.getElementById('syncStatus');
+    syncSpan.classList.toggle('rt-on', ativo);
+    syncSpan.classList.toggle('rt-off', !ativo);
+}
+
+function payloadEhDoMesAtual(payload) {
+    if (!payload) return false;
+    const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+    const mesAtualNum = getMesNumero(mesNome);
+    return Number(payload.month) === Number(mesAtualNum) && Number(payload.year) === Number(anoAtual);
+}
+
+// Atualiza uma única célula de horas recebida de outro dispositivo, sem
+// recarregar a tabela inteira — evita "piscar" a tela e mantém o campo
+// que o usuário local estiver editando intacto.
+function aplicarAtualizacaoRemotaDeHoras(payload) {
+    if (!payloadEhDoMesAtual(payload)) return;
+    const { pilot, day, value } = payload;
+    if (!pilot || !day) return;
+
+    // Não sobrescreve o campo se for exatamente o dia que este usuário
+    // está editando agora (evita conflito visual com a digitação local).
+    if (diaEditandoIndex === (day - 1) && isEditing) return;
+
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        if (getNomeFromRow(row) !== pilot) return;
+        const inp = row.cells[day]?.querySelector('.input-hora');
+        if (!inp) return;
+        const v = Number(value) || 0;
+        inp.value = v > 0 ? formatarHora(v) : (inp.getAttribute('data-original-status') || "");
+        atualizarCorInput(inp);
+        atualizarTotalLinha(row);
+    });
+    recalcularTudo();
+}
+
+function aplicarAtualizacaoRemotaDeStatus(payload) {
+    if (!payloadEhDoMesAtual(payload)) return;
+    const { pilot, day, status } = payload;
+    if (!pilot || day === undefined || !status) return;
+
+    if (!ESCALA_MENSAL[pilot]) ESCALA_MENSAL[pilot] = {};
+    ESCALA_MENSAL[pilot][day] = status;
+
+    if (diaEditandoIndex === day && isEditing) return;
+
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        if (getNomeFromRow(row) !== pilot) return;
+        const inp = row.cells[day + 1]?.querySelector('.input-hora');
+        if (!inp) return;
+        const horasAtuais = parseHora(inp.value);
+        if (horasAtuais === 0) {
+            inp.value = status === "SO" ? "" : status;
+        }
+        inp.setAttribute('data-original-status', status);
+        atualizarCorInput(inp);
+    });
+    recalcularTudo();
+}
 
 const mesSalvo = obterMesDoStorage();
 const dataAtual = new Date();
@@ -1101,6 +1328,7 @@ if (mesSalvo) {
     document.getElementById('campoMes').value = mesAtualNome;
 }
 carregarDoBackend();
+iniciarSocket();
 </script>
 </body>
 </html>
