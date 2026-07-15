@@ -396,7 +396,18 @@ function getStatusFromValue(value) {
     const s = ["DM","CM","VO","CQ","TN","EA","TR","FR","FS","FE","RE","SO"];
     return s.includes(value) ? value : null;
 }
-function getNomeFromRow(row) { return row.cells[0].innerText.trim(); }
+// IMPORTANTE: não usar innerText da célula aqui — depois que o badge de
+// folgas (<span class="folga-badge">) é inserido na mesma célula, innerText
+// passa a incluir esse texto junto (ex.: "Ronie⁶"), corrompendo todo lookup
+// de nome (grupo, escala, edição). O nome puro fica salvo em data-pilot na
+// criação da linha; o fallback abaixo só existe por segurança.
+function getNomeFromRow(row) {
+    if (row.dataset && row.dataset.pilot) return row.dataset.pilot;
+    const nomeCell = row.cells[0];
+    const primeiroNo = nomeCell?.childNodes[0];
+    if (primeiroNo && primeiroNo.nodeType === Node.TEXT_NODE) return primeiroNo.textContent.trim();
+    return nomeCell?.innerText.trim() || "";
+}
 
 function atualizarCorInput(inp) {
     const valor = inp.value.trim();
@@ -907,6 +918,7 @@ async function carregarDoBackend() {
             for (let p of grupos[grupo]) {
                 const row = document.createElement('tr');
                 row.classList.add('membro-row');
+                row.dataset.pilot = p.name;
                 const nomeCell = document.createElement('td');
                 nomeCell.textContent = p.name;
                 row.appendChild(nomeCell);
