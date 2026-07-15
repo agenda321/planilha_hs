@@ -364,7 +364,7 @@ function getGrupo(nome) {
     return "CESSNA 206/210";
 }
 
-// ===== NOVOS HELPERS PARA RANKING UNIFICADO =====
+// ===== HELPERS DO RANKING (NOVO) =====
 function agruparEOrdenarPorHoras(pilotos, calcTotal) {
   const grupos = {"CESSNA 206/210":[], "CARAVAN":[], "COPILOTO":[]};
   pilotos.forEach(p => {
@@ -708,7 +708,7 @@ async function salvarStatusNoBackend(nome, dia, novoStatus) {
     }
 }
 
-// ===== FUNÇÃO MOSTRAR COMPARATIVO ATUALIZADA (RANKING = LISTA DISPONÍVEIS) =====
+// ===== MOSTRAR COMPARATIVO (RANKING AGORA IGUAL À LISTA DE DISPONÍVEIS) =====
 function mostrarComparativoDia(diaIndex) {
   const mesAtual = document.getElementById('campoMes').value.trim() || "Julho";
   const pilotos = [];
@@ -722,7 +722,7 @@ function mostrarComparativoDia(diaIndex) {
 
   const gruposOrdenados = agruparEOrdenarPorHoras(pilotos, p => p.total);
 
-  let html = `<div class="card-detalhe"><h2 style="text-align:center;">📊 Ranking de Horas — ${mesAtual}</h2>`;
+  let html = `<div class="card-detalhe"><h2 style="text-align:center;">📊 Horas Acumuladas — ${mesAtual}</h2>`;
 
   const titulos = {
     "CESSNA 206/210": "🔹 CMTES CESSNA 206/210",
@@ -901,7 +901,6 @@ async function carregarDoBackend() {
                         inp.setAttribute('data-original-status', statusOriginal);
                     }
 
-                    // ===== LONG PRESS =====
                     let lpTimer = null;
                     inp.addEventListener('touchstart', () => {
                         if (!isEditing || diaEditandoIndex !== i) return;
@@ -1196,7 +1195,6 @@ document.getElementById('campoMes').addEventListener('change', function() {
     }
 });
 
-// ===== TEMPO REAL (Socket.IO) =====
 let socket = null;
 
 function iniciarSocket() {
