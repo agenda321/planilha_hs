@@ -6,6 +6,7 @@ from flask import Flask, request, jsonify, render_template, redirect
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from flask_cors import CORS
+from flask_socketio import SocketIO, join_room
 
 print("🚀 Iniciando aplicação...")
 sys.stdout.flush()
@@ -21,6 +22,13 @@ sys.stdout.flush()
 app = Flask(__name__)
 CORS(app)
 print("✅ Flask e CORS configurados")
+sys.stdout.flush()
+
+# Tempo real: threading é o async_mode escolhido por não exigir eventlet/gevent
+# (que não funcionam bem no Render free tier). Funciona via long-polling e,
+# quando o servidor suportar, faz upgrade para WebSocket automaticamente.
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+print("✅ SocketIO configurado (async_mode=threading)")
 sys.stdout.flush()
 
 database_url = os.environ.get("DATABASE_URL")
@@ -163,6 +171,19 @@ def planilha():
 def health():
     return "OK", 200
 
+def sala_do_mes(month, year):
+    return f"{int(month)}-{int(year)}"
+
+@socketio.on("join_month")
+def on_join_month(data):
+    try:
+        month = int(data.get("month"))
+        year = int(data.get("year"))
+        join_room(sala_do_mes(month, year))
+    except Exception as e:
+        print(f"❌ Erro em join_month: {e}")
+        sys.stdout.flush()
+
 @app.route("/api/login", methods=["POST"])
 def login():
     try:
@@ -236,6 +257,7 @@ def save_data():
         if not month or not year:
             return jsonify({"success": False, "erro": "Mês e ano são obrigatórios"}), 400
         month = int(month); year = int(year)
+        eventos_para_emitir = []
         for pilot_name, days in data.get("logs", {}).items():
             pilot = Pilot.query.filter_by(name=pilot_name).first()
             if not pilot:
@@ -248,7 +270,13 @@ def save_data():
                     log.hours = valor_horas
                 else:
                     db.session.add(FlightLog(pilot_id=pilot.id, day=day, month=month, year=year, hours=valor_horas))
+                eventos_para_emitir.append({
+                    "pilot": pilot_name, "day": day, "value": valor_horas,
+                    "month": month, "year": year
+                })
         db.session.commit()
+        for evento in eventos_para_emitir:
+            socketio.emit("logs_atualizados", evento, room=sala_do_mes(month, year))
         return jsonify({"success": True})
     except Exception as e:
         print(f"❌ Erro em /api/data (POST): {e}")
@@ -312,6 +340,10 @@ def update_status():
             override = StatusOverride(pilot_id=pilot.id, day=day, month=month, year=year, status=new_status)
             db.session.add(override)
         db.session.commit()
+        socketio.emit("status_atualizado", {
+            "pilot": pilot_name, "day": day, "status": new_status,
+            "month": month, "year": year
+        }, room=sala_do_mes(month, year))
         return jsonify({"success": True})
     except Exception as e:
         print(f"❌ Erro em /api/update_status: {e}")
@@ -462,4 +494,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"✅ Servidor rodando na porta {port}")
     sys.stdout.flush()
-    app.run(host="0.0.0.0", port=port)
+    socketio.run(app, host="0.0.0.0", port=port)
