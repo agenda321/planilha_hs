@@ -1,5 +1,8 @@
 flask
 flask-sqlalchemy
 flask-cors
+flask-socketio
+python-socketio
+python-engineio
 psycopg2-binary
 gunicorn
