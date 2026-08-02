@@ -13,7 +13,6 @@
     <link rel="apple-touch-icon" href="/icon-192.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* Reset e base */
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
             margin: 0; min-height: 100vh;
@@ -35,7 +34,6 @@
             box-shadow: inset 0 0 0 2px #fff9e8, inset 0 0 0 6px #d9c894, 0 12px 28px rgba(0,0,0,0.4);
             padding: 6px 0 10px;
         }
-        /* Cabeçalho */
         .cabecalho-skeuo {
             padding: 8px 16px;
             border-bottom: 2px solid #b28b5e;
@@ -69,8 +67,6 @@
             box-shadow: inset 0 1px 2px #ffdd99, 0 3px 6px rgba(0,0,0,0.2);
         }
         .badge-senha.admin-mode { background: #2e7d32; color: #fff; }
-
-        /* Ações */
         .top-actions {
             padding: 0 10px;
             display: flex;
@@ -102,6 +98,8 @@
         .btn-skeuo:disabled { opacity: 0.45; cursor: default; transform: none; }
         .btn-skeuo.rank-btn { background: radial-gradient(circle at 30% 20%, #9fcbef, #6b8fcb); box-shadow: 0 4px 0 #2f4f7a; }
         .btn-skeuo.rank-btn:active { box-shadow: 0 1px 0 #2f4f7a; }
+        .btn-skeuo.sair-btn { background: radial-gradient(circle at 30% 20%, #f3a49f, #cb6b6b); box-shadow: 0 4px 0 #7a2f2f; display: none; }
+        .btn-skeuo.sair-btn:active { box-shadow: 0 1px 0 #7a2f2f; }
 
         .info-bar {
             display: flex;
@@ -136,7 +134,6 @@
             touch-action: manipulation;
         }
 
-        /* Dias - botões de navegação rápida */
         .dias-botoes {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
@@ -178,8 +175,11 @@
             box-shadow: 0 3px 0 #7a5200, 0 0 8px 2px rgba(230,167,0,0.5);
             color: #3b2a00;
         }
+        .btn-dia.dia-editando {
+            background: radial-gradient(circle at 30% 20%, #a5d6a5, #6f9e6f);
+            box-shadow: 0 3px 0 #3e6b3e;
+        }
 
-        /* Tabela */
         .table-wrapper {
             overflow-x: auto;
             margin: 0 8px;
@@ -225,6 +225,9 @@
             z-index: 15;
             background: #9c7a50;
         }
+        .planilha th.col-ativa { background: linear-gradient(to bottom, #e6a800, #a07000) !important; }
+        .planilha td.col-ativa { background: #fffacc !important; }
+
         .input-hora {
             width: 58px;
             padding: 4px;
@@ -400,7 +403,6 @@
             font-weight: bold;
         }
 
-        /* Responsivo */
         @media (max-width: 600px) {
             .cabecalho-skeuo { flex-direction: column; align-items: stretch; }
             .title-area { justify-content: center; }
@@ -436,6 +438,7 @@
             <div class="button-group">
                 <button class="btn-skeuo" id="btnDesbloquear">🔐 DESBLOQUEAR</button>
                 <button class="btn-skeuo" id="btnBloquear" disabled>🔒 BLOQUEAR</button>
+                <button class="btn-skeuo sair-btn" id="btnSairDia" style="display:none;">✖ SAIR</button>
                 <button class="btn-skeuo rank-btn" id="btnRanking">📊 RANKING</button>
             </div>
             <div class="info-bar" style="padding:0;">
@@ -489,6 +492,7 @@ let DIAS = 31;
 let anoAtual = new Date().getFullYear();
 let isEditing = false;
 let password = "";
+let diaEditandoIndex = null; // dia que está sendo editado (coluna)
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 function getMesNumero(nomeMes) {
@@ -653,20 +657,65 @@ function atualizarTotaisBotoesDias() {
     });
 }
 
+// ===== EDIÇÃO POR COLUNA (selecionar dia) =====
+function ativarEdicaoDia(diaIndex) {
+    if (!isEditing) {
+        showToast("⚠️ Desbloqueie a planilha primeiro.");
+        return;
+    }
+    // Sair da edição de coluna anterior
+    sairEdicaoDia();
+    diaEditandoIndex = diaIndex;
+
+    // Desabilita todos os inputs primeiro
+    document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = true);
+    // Habilita apenas os inputs da coluna selecionada
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const inp = row.cells[diaIndex + 1]?.querySelector('.input-hora');
+        if (inp) inp.disabled = false;
+    });
+
+    // Destaque na coluna
+    document.querySelectorAll('.col-ativa').forEach(el => el.classList.remove('col-ativa'));
+    document.querySelectorAll('#tableHeader th')[diaIndex + 1]?.classList.add('col-ativa');
+    document.querySelectorAll('#tabelaHoras tbody tr').forEach(row => {
+        if (row.cells[diaIndex + 1]) row.cells[diaIndex + 1].classList.add('col-ativa');
+    });
+
+    document.querySelectorAll('.btn-dia').forEach((btn, i) => btn.classList.toggle('dia-editando', i === diaIndex));
+    document.getElementById('btnSairDia').style.display = 'inline-block';
+    showToast(`✏️ Editando dia ${String(diaIndex + 1).padStart(2,'00')}`);
+}
+
+function sairEdicaoDia() {
+    if (diaEditandoIndex !== null) {
+        // Reabilita todos os inputs (se estiver em modo edição)
+        document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = !isEditing);
+        document.querySelectorAll('.col-ativa').forEach(el => el.classList.remove('col-ativa'));
+        document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-editando'));
+        diaEditandoIndex = null;
+        document.getElementById('btnSairDia').style.display = 'none';
+        showToast('🔓 Edição geral restaurada');
+    }
+}
+
 // ===== HABILITAR/DESABILITAR EDIÇÃO =====
 function setEditMode(enable) {
     isEditing = enable;
-    document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => {
-        inp.disabled = !enable;
-        inp.readOnly = false;
-    });
+    if (!enable) {
+        sairEdicaoDia(); // sai da edição de coluna
+        document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = true);
+    } else {
+        // Em modo edição, todos os inputs ficam desabilitados até que um dia seja selecionado
+        document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = true);
+    }
     document.getElementById('btnBloquear').disabled = !enable;
     document.getElementById('btnDesbloquear').disabled = enable;
     document.getElementById('campoMes').disabled = !enable;
     document.getElementById('editModeChip').innerHTML = enable ? '✏️ EDIÇÃO ATIVA' : '📖 VISUALIZAÇÃO';
     document.getElementById('statusBadge').innerHTML = enable ? '🔓 EDIÇÃO' : '🔒 LEITURA';
     document.getElementById('statusBadge').classList.toggle('admin-mode', enable);
-    showToast(enable ? '✅ Modo edição ativado' : '🔒 Modo leitura ativado');
+    showToast(enable ? '✅ Modo edição ativado. Clique em um dia para editar.' : '🔒 Modo leitura ativado');
 }
 
 // ===== SENHA =====
@@ -815,14 +864,14 @@ async function carregarDoBackend() {
                     inp.disabled = true; // começa bloqueado
 
                     inp.addEventListener('input', function() {
-                        if (!isEditing) return;
+                        if (!isEditing || diaEditandoIndex !== i) return;
                         atualizarTotalLinha(row);
                         recalcularTudo();
                         clearTimeout(this._saveTimer);
                         this._saveTimer = setTimeout(salvarNoBackend, 1000);
                     });
                     inp.addEventListener('blur', function() {
-                        if (!isEditing) return;
+                        if (!isEditing || diaEditandoIndex !== i) return;
                         const v = parseHora(this.value);
                         if (v > 0) this.value = formatarHora(v);
                         else this.value = '';
@@ -831,7 +880,7 @@ async function carregarDoBackend() {
                         salvarNoBackend();
                     });
                     inp.addEventListener('keydown', function(e) {
-                        if (e.key === 'Enter' && isEditing) {
+                        if (e.key === 'Enter' && isEditing && diaEditandoIndex === i) {
                             e.preventDefault();
                             this.blur();
                         }
@@ -859,21 +908,23 @@ async function carregarDoBackend() {
     }
 }
 
+// ===== BOTÕES DE DIAS (sem iniciais) =====
 function criarBotoesDias() {
     const container = document.getElementById('botoesDias');
     container.innerHTML = '';
     for (let i = 0; i < DIAS; i++) {
         const btn = document.createElement('button');
         btn.classList.add('btn-dia');
-        const diaNum = i+1;
-        const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
-        const mesNum = getMesNumero(mesNome);
-        const dataObj = new Date(anoAtual, mesNum-1, diaNum);
-        const diaSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][dataObj.getDay()];
-        btn.innerHTML = `<span class="dia-num">${String(diaNum).padStart(2,'00')} ${diaSemana}</span><span class="dia-total"></span>`;
+        const diaNum = i + 1;
+        btn.innerHTML = `<span class="dia-num">${String(diaNum).padStart(2,'00')}</span><span class="dia-total"></span>`;
         btn.onclick = () => {
             document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-selecionado'));
             btn.classList.add('dia-selecionado');
+            if (isEditing) {
+                ativarEdicaoDia(i);
+            } else {
+                showToast('🔐 Desbloqueie a planilha para editar um dia.');
+            }
         };
         container.appendChild(btn);
     }
@@ -945,7 +996,7 @@ function mostrarAjuda() {
     itens.forEach(item => {
         html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:${item.cor};border:1px solid #999;font-size:0.7rem;">&nbsp;</div><span>${item.texto}</span></div>`;
     });
-    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">🔐 Desbloqueie com a senha para editar.<br>✅ Salvamento automático ao sair do campo.</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
+    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">🔐 Desbloqueie com a senha, depois clique em um dia para editar apenas aquela coluna.<br>✅ Salvamento automático ao sair do campo.</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
     const modal = document.createElement('div');
     modal.className = 'modal-ajuda';
     modal.innerHTML = html;
@@ -956,6 +1007,7 @@ function mostrarAjuda() {
 // ===== NAVEGAÇÃO =====
 document.getElementById('btnMesAnterior').addEventListener('click', function() {
     if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
+    sairEdicaoDia();
     const mesAtual = document.getElementById('campoMes').value.trim();
     const mesNum = getMesNumero(mesAtual);
     let novoMesNum = mesNum - 1;
@@ -966,6 +1018,7 @@ document.getElementById('btnMesAnterior').addEventListener('click', function() {
 });
 document.getElementById('btnMesProximo').addEventListener('click', function() {
     if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
+    sairEdicaoDia();
     const mesAtual = document.getElementById('campoMes').value.trim();
     const mesNum = getMesNumero(mesAtual);
     let novoMesNum = mesNum + 1;
@@ -976,6 +1029,7 @@ document.getElementById('btnMesProximo').addEventListener('click', function() {
 });
 document.getElementById('campoMes').addEventListener('change', function() {
     if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
+    sairEdicaoDia();
     salvarMesNoStorage(this.value);
     carregarDoBackend();
 });
@@ -983,6 +1037,7 @@ document.getElementById('campoMes').addEventListener('change', function() {
 // ===== INICIALIZAÇÃO =====
 document.getElementById('btnDesbloquear').onclick = login;
 document.getElementById('btnBloquear').onclick = bloquear;
+document.getElementById('btnSairDia').onclick = sairEdicaoDia;
 document.getElementById('btnRanking').onclick = mostrarRanking;
 document.getElementById('btnAjuda').onclick = mostrarAjuda;
 
