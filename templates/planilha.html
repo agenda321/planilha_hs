@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Planilha de Voo | Registro de Horas</title>
+    <title>Planilha de Horas | Registro de Voo</title>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#1a237e">
     <meta name="mobile-web-app-capable" content="yes">
@@ -13,7 +13,6 @@
     <link rel="apple-touch-icon" href="/icon-192.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* CSS completo (mesmo do original) */
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
             margin: 0; min-height: 100vh;
@@ -53,22 +52,11 @@
             width: 110px; text-align: center;
         }
         .mes-editavel:disabled { background: #e9e0cf; opacity: 0.8; }
-        .badge-senha {
-            background: #b97f4b; border-radius: 60px; padding: 4px 12px;
-            font-size: 0.7rem; font-weight: bold; color: #fff1cf;
-            box-shadow: inset 0 1px 2px #ffdd99, 0 3px 6px rgba(0,0,0,0.2);
-        }
-        .badge-senha.admin-mode { background: #2e7d32; color: #fff; }
-        .badge-dia-edicao {
-            background: #e6a800; border-radius: 60px; padding: 4px 12px;
-            font-size: 0.7rem; font-weight: bold; color: #3b2a00; display: none;
-        }
-        .badge-dia-edicao.visivel { display: inline-block; }
+        .badge-senha { display: none; } /* removido o conceito de senha/edição */
         .top-actions {
-            padding: 0 10px; display: flex; justify-content: space-between;
+            padding: 0 10px; display: flex; justify-content: flex-end;
             align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;
         }
-        .button-group { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
         .btn-skeuo {
             background: radial-gradient(circle at 30% 20%, #f3de9f, #cb9e6b);
             border: none; font-size: 0.75rem; font-weight: bold; padding: 7px 14px;
@@ -118,10 +106,6 @@
             box-shadow: 0 3px 0 #7a5200, 0 0 8px 2px rgba(230,167,0,0.5);
             color: #3b2a00;
         }
-        .btn-dia.dia-editando {
-            background: radial-gradient(circle at 30% 20%, #a5d6a5, #6f9e6f);
-            box-shadow: 0 3px 0 #3e6b3e;
-        }
         .table-wrapper {
             overflow-x: auto; margin: 0 8px;
             background: #ddcdac; padding: 6px; border-radius: 18px;
@@ -151,22 +135,8 @@
         }
         .input-hora::placeholder { color: #bbb; font-size: 0.65rem; }
         .input-hora.has-value { background: #fff1b5; border-color: #e4b149; box-shadow: 0 0 5px gold; }
-        .input-hora.streak-day { background: #ffcc99; border-color: #e67300; }
-        .input-hora.editando-longpress {
-            outline: 3px solid #ffaa00;
-            box-shadow: 0 0 0 4px rgba(255,170,0,0.3);
-            background: #fff8e0 !important;
-        }
+        .input-hora.streak-day { background: #ffb366; border-color: #e67300; box-shadow: 0 0 8px #e67300; }
         .input-hora[readonly] { cursor: not-allowed; }
-        .input-hora[data-status="DM"], .input-hora[data-status="CM"] { background: #ffb366; border-color: #cc5200; color: #662200; font-weight: bold; }
-        .input-hora[data-status="VO"], .input-hora[data-status="CQ"], .input-hora[data-status="TN"] { background: #99ccff; border-color: #0066cc; color: #003366; font-weight: bold; }
-        .input-hora[data-status="EA"], .input-hora[data-status="TR"] { background: #ffff99; border-color: #cccc00; color: #666600; font-weight: bold; }
-        .input-hora[data-status="FR"] { background: #90ee90; border-color: #008000; color: #004d00; font-weight: bold; }
-        .input-hora[data-status="FS"] { background: #ff9999; border-color: #cc0000; color: #660000; font-weight: bold; }
-        .input-hora[data-status="FE"] { background: #ccffcc; border-color: #00cc00; color: #006600; font-weight: bold; }
-        .input-hora[data-status="RE"] { background: #ffccff; border-color: #cc66cc; color: #660066; font-weight: bold; }
-        .input-hora[data-status="SO"] { background: #ffffff; border-color: #999999; color: #333333; font-weight: bold; }
-        .input-hora[data-status="default"] { background: #f9f2e0; border-color: #c9aa77; }
         .total-cell { background: #e7dbbc; font-weight: bold; font-size: 0.8rem; }
         .group-title-row td {
             background: linear-gradient(135deg, #ccaa7a, #b1834d);
@@ -182,51 +152,20 @@
             font-size: 0.65rem; font-weight: bold; color: #ffe1a0;
             box-shadow: inset 0 1px 3px #ffdf9a, 0 2px 4px black;
         }
-        .modal-senha, .modal-detalhe, .modal-ajuda, .modal-menu-dia {
+        .modal-detalhe, .modal-ajuda {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.75); backdrop-filter: blur(4px);
             display: flex; align-items: center; justify-content: center; z-index: 2000;
         }
-        .card-senha, .card-detalhe, .card-ajuda {
+        .card-detalhe, .card-ajuda {
             background: #fdf5e6; border-radius: 32px; width: 92%; max-width: 500px;
             padding: 20px; box-shadow: 0 20px 35px black; max-height: 88vh; overflow-y: auto;
-        }
-        .card-senha { text-align: center; max-width: 320px; }
-        .card-senha input {
-            width: 100%; padding: 10px; margin: 16px 0; border-radius: 60px;
-            border: 2px solid #b67e45; background: #fff2e0;
-            font-size: 1rem; text-align: center;
-        }
-        .botoes-senha { display: flex; gap: 12px; justify-content: center; }
-        .btn-modal {
-            background: #a07143; color: white; border: none;
-            padding: 8px 20px; border-radius: 60px; cursor: pointer;
-            font-size: 0.9rem; touch-action: manipulation;
         }
         .btn-fechar {
             background: #b07842; border: none; padding: 10px 28px;
             border-radius: 60px; color: white; margin-top: 16px; cursor: pointer;
             display: block; margin-left: auto; margin-right: auto;
             touch-action: manipulation;
-        }
-        .card-menu-dia {
-            background: #fdf5e6; border-radius: 32px; width: 85%; max-width: 300px;
-            padding: 20px; box-shadow: 0 20px 35px black; text-align: center;
-        }
-        .card-menu-dia h3 { margin: 0 0 16px; color: #3b2a1f; font-size: 1.1rem; }
-        .menu-dia-opcoes { display: flex; flex-direction: column; gap: 10px; }
-        .btn-menu-opcao {
-            background: radial-gradient(circle at 30% 20%, #f3de9f, #cb9e6b);
-            border: none; padding: 12px 20px; border-radius: 60px;
-            font-size: 0.9rem; font-weight: bold; color: #3b2a1f;
-            box-shadow: 0 4px 0 #7a4f2c; cursor: pointer;
-            touch-action: manipulation;
-        }
-        .btn-menu-opcao:active { transform: translateY(2px); box-shadow: 0 2px 0 #7a4f2c; }
-        .btn-menu-cancelar {
-            background: #c0a070; border: none; padding: 10px 20px;
-            border-radius: 60px; font-size: 0.85rem; color: white;
-            margin-top: 4px; cursor: pointer; touch-action: manipulation;
         }
         .card-ajuda { max-width: 360px; }
         .ajuda-item {
@@ -262,7 +201,6 @@
         }
         .toast.show { opacity: 1; }
 
-        /* Estilo do badge de contagem de folgas */
         .folga-badge {
             font-size: 0.65rem;
             margin-left: 4px;
@@ -272,7 +210,6 @@
         .folga-badge.igual8 { color: #e6a800; font-weight: bold; }
         .folga-badge.acima8 { color: #cc0000; font-weight: bold; }
 
-        /* Indicador de conexão em tempo real */
         .sync-status.rt-on { background: #1b5e20; }
         .sync-status.rt-off { background: #6d4c1f; }
     </style>
@@ -291,26 +228,21 @@
                 </div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                <span class="badge-dia-edicao" id="badgeDiaEdicao">✏️ DIA --</span>
-                <div class="badge-senha" id="statusBadge">🔒 LEITURA</div>
+                <span class="badge-senha" style="display:none;">🔓 EDIÇÃO</span>
             </div>
         </div>
 
         <div class="top-actions">
             <div class="button-group">
-                <button class="btn-skeuo" id="btnDesbloquear">🔐 DESBLOQUEAR</button>
-                <button class="btn-skeuo" id="btnLimpar" disabled>🧹 LIMPAR</button>
-                <button class="btn-skeuo" id="btnBloquear" disabled>🔒 BLOQUEAR</button>
-                <button class="btn-skeuo" id="btnSairDia" style="display:none">✖ SAIR</button>
+                <!-- Removidos botões de bloqueio/desbloqueio, pois agora é sempre editável -->
             </div>
         </div>
 
         <div class="info-bar">
-            <span class="sync-status" id="syncStatus">💾 Sincronizado</span>
+            <span class="sync-status" id="syncStatus">💾 Carregando...</span>
             <button class="btn-ajuda" id="btnAjuda" title="Legenda">?</button>
         </div>
 
-        <!-- BOTÕES DOS DIAS -->
         <div class="dias-botoes" id="botoesDias"></div>
 
         <div class="table-wrapper">
@@ -322,7 +254,7 @@
         </div>
 
         <div class="info-footer">
-            <div class="status-chip" id="editModeChip">📖 VISUALIZAÇÃO</div>
+            <div class="status-chip" id="editModeChip">✏️ EDIÇÃO LIVRE</div>
         </div>
 
     </div>
@@ -350,8 +282,33 @@ const MES_STORAGE_KEY = 'planilha_mes_selecionado';
 function salvarMesNoStorage(mes) { localStorage.setItem(MES_STORAGE_KEY, mes); }
 function obterMesDoStorage() { return localStorage.getItem(MES_STORAGE_KEY) || null; }
 
-// ===== ESCALA MENSAL (RECEBIDA DO BACKEND) =====
-let ESCALA_MENSAL = {};
+let DIAS = 31;
+let anoAtual = new Date().getFullYear();
+
+// Dicionário de nomes de meses
+const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+function getMesNumero(nomeMes) {
+    const mapa = { "janeiro":1, "fevereiro":2, "março":3, "abril":4, "maio":5, "junho":6, "julho":7, "agosto":8, "setembro":9, "outubro":10, "novembro":11, "dezembro":12 };
+    return mapa[nomeMes.toLowerCase()] || new Date().getMonth() + 1;
+}
+function getNomeMes(num) { return MESES[num-1] || "Julho"; }
+
+function diasNoMes(mesNum, ano) {
+    return new Date(ano, mesNum, 0).getDate(); // mesNum é 1-12, mas Date espera mês 0-11
+}
+function atualizarDias() {
+    const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+    const mesNum = getMesNumero(mesNome);
+    DIAS = diasNoMes(mesNum, anoAtual);
+    return DIAS;
+}
+
+function parseHora(v) {
+    if (!v) return 0;
+    let n = parseFloat(String(v).trim().replace(',','.'));
+    return isNaN(n) ? 0 : n;
+}
+function formatarHora(n) { return n.toFixed(1).replace('.',','); }
 
 // ===== GRUPOS =====
 const GRUPOS_PILOTO = {
@@ -364,43 +321,9 @@ function getGrupo(nome) {
     return "CESSNA 206/210";
 }
 
-const STATUS_BLOQUEADOS = ["DM","CM","EA","FE","TR","TN","CQ"];
-const STATUS_EDITAVEL_LONGPRESS = ["FS","RE","FR"];
-function isStatusBloqueado(status) { return STATUS_BLOQUEADOS.includes(status); }
+// ===== DADOS =====
+let LOGS = {}; // { "Piloto": { diaIndex: hora, ... } }
 
-let DIAS = 31;
-let isEditing = false;
-let diaEditandoIndex = null;
-let diaReferencia = null;
-let password = "";
-let anoAtual = new Date().getFullYear();
-
-function diasNoMes(mes) {
-    const m = mes.toLowerCase();
-    if (m === "fevereiro") return 28;
-    if (["abril","junho","setembro","novembro"].includes(m)) return 30;
-    return 31;
-}
-function atualizarDias() {
-    let mes = document.getElementById('campoMes').value.trim() || "Julho";
-    DIAS = diasNoMes(mes);
-    return DIAS;
-}
-function parseHora(v) {
-    if (!v) return 0;
-    let n = parseFloat(String(v).trim().replace(',','.'));
-    return isNaN(n) ? 0 : n;
-}
-function formatarHora(n) { return n.toFixed(1).replace('.',','); }
-function getStatusFromValue(value) {
-    const s = ["DM","CM","VO","CQ","TN","EA","TR","FR","FS","FE","RE","SO"];
-    return s.includes(value) ? value : null;
-}
-// IMPORTANTE: não usar innerText da célula aqui — depois que o badge de
-// folgas (<span class="folga-badge">) é inserido na mesma célula, innerText
-// passa a incluir esse texto junto (ex.: "Ronie⁶"), corrompendo todo lookup
-// de nome (grupo, escala, edição). O nome puro fica salvo em data-pilot na
-// criação da linha; o fallback abaixo só existe por segurança.
 function getNomeFromRow(row) {
     if (row.dataset && row.dataset.pilot) return row.dataset.pilot;
     const nomeCell = row.cells[0];
@@ -410,20 +333,10 @@ function getNomeFromRow(row) {
 }
 
 function atualizarCorInput(inp) {
-    const valor = inp.value.trim();
-    const status = getStatusFromValue(valor);
-    if (status) {
-        inp.setAttribute('data-status', status);
-        inp.classList.remove('has-value');
-    } else if (valor && parseHora(valor) > 0) {
-        inp.setAttribute('data-status', '');
-        const orig = inp.getAttribute('data-original-status');
-        if (orig && ["FR","FS","RE"].includes(orig)) {
-            inp.setAttribute('data-status', orig);
-        }
+    const valor = parseHora(inp.value);
+    if (valor > 0) {
         inp.classList.add('has-value');
     } else {
-        inp.setAttribute('data-status', 'default');
         inp.classList.remove('has-value');
     }
 }
@@ -440,12 +353,7 @@ function atualizarTotalLinha(row) {
     return soma;
 }
 
-// Aviso de dias trabalhados seguidos — SÓ cor, sem ícone de alerta.
-// Regra: ao completar 6 dias trabalhados seguidos, marca esse bloco de 6 dias
-// + o 7º dia seguinte (folga obrigatória) com a cor de aviso — "fechando"
-// o bloco de 7 dias. Depois disso a contagem reinicia do zero, mesmo que o
-// piloto continue trabalhando no dia seguinte ao bloco fechado: só volta a
-// colorir quando se formar uma NOVA sequência de 6 dias trabalhados seguidos.
+// ===== VALIDAÇÃO DE STREAK (6 dias trabalhados → 7º dia laranja) =====
 function validarStreaks() {
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
         const inputs = row.querySelectorAll('.input-hora');
@@ -458,11 +366,11 @@ function validarStreaks() {
             if (vals[i]) {
                 streak++;
                 if (streak === 6) {
-                    // Marca os 6 dias trabalhados + o 7º dia (folga obrigatória seguinte)
+                    // Marca os 6 dias trabalhados + o 7º dia seguinte
                     for (let j = i - 5; j <= i; j++) seq[j] = true;
                     const diaSeguinte = i + 1;
                     if (diaSeguinte < DIAS) seq[diaSeguinte] = true;
-                    // Fecha o bloco e reinicia a contagem do zero
+                    // Fecha o bloco e reinicia
                     streak = 0;
                     i = diaSeguinte + 1;
                     continue;
@@ -476,14 +384,7 @@ function validarStreaks() {
     });
 }
 
-// ===== CONTADOR DE FOLGAS =====
-// Determina até que dia (índice, exclusive) o contador deve olhar, de acordo
-// com o mês/ano atualmente exibido em relação ao mês/ano real de hoje:
-//  - Mês exibido == mês atual real  -> conta até HOJE (inclusive). Isso é
-//    proposital: se hoje já está marcado FR/FS/SO/RE e ainda não tem hora
-//    lançada, o piloto já está de folga agora, então já entra na contagem.
-//  - Mês exibido no passado         -> conta o mês inteiro
-//  - Mês exibido no futuro          -> ainda não conta nada (0)
+// ===== CONTAGEM DE FOLGAS (baseada em células vazias) =====
 function getLimiteDiasContagem() {
     const hoje = new Date();
     const mesReal = hoje.getMonth() + 1;
@@ -492,7 +393,7 @@ function getLimiteDiasContagem() {
     const mesExibido = getMesNumero(mesExibidoNome);
 
     if (anoAtual === anoReal && mesExibido === mesReal) {
-        return hoje.getDate();
+        return hoje.getDate(); // conta até hoje inclusive
     }
     if (anoAtual < anoReal || (anoAtual === anoReal && mesExibido < mesReal)) {
         return DIAS;
@@ -500,15 +401,10 @@ function getLimiteDiasContagem() {
     return 0;
 }
 
-// Conta como folga qualquer dia marcado FR, FS, SO ou RE em que o piloto
-// não tenha horas efetivamente lançadas (ou seja, não voou naquele dia).
-function contarFolgas(nomePiloto, row) {
+function contarFolgas(nome, row) {
     const limite = getLimiteDiasContagem();
     let count = 0;
     for (let i = 0; i < limite; i++) {
-        const status = ESCALA_MENSAL[nomePiloto]?.[i] || "";
-        const contaComoFolga = (status === "FR" || status === "FS" || status === "SO" || status === "RE");
-        if (!contaComoFolga) continue;
         const inp = row.cells[i+1]?.querySelector('.input-hora');
         const horas = inp ? parseHora(inp.value) : 0;
         if (horas === 0) count++;
@@ -521,17 +417,14 @@ function atualizarTodosContadores() {
         const nome = getNomeFromRow(row);
         const count = contarFolgas(nome, row);
         const tdNome = row.cells[0];
-        // Remove badge antigo se existir
         let badge = tdNome.querySelector('.folga-badge');
         if (!badge) {
             badge = document.createElement('span');
             badge.className = 'folga-badge';
             tdNome.appendChild(badge);
         }
-        // Formata sobrescrito
         const digits = String(count).split('').map(d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[parseInt(d)]).join('');
         badge.textContent = digits;
-        // Aplica classe de cor
         badge.className = 'folga-badge';
         if (count < 8) badge.classList.add('normal');
         else if (count === 8) badge.classList.add('igual8');
@@ -549,7 +442,6 @@ function recalcularTudo() {
     tfoot.appendChild(tr);
     validarStreaks();
     atualizarTotaisBotoesDias();
-    // Atualiza contadores de folgas
     atualizarTodosContadores();
 }
 
@@ -571,313 +463,43 @@ function atualizarTotaisBotoesDias() {
     });
 }
 
-function ativarEdicaoDia(diaIndex) {
-    if (diaEditandoIndex !== null && diaEditandoIndex !== diaIndex) sairEdicaoDia();
-    diaEditandoIndex = diaIndex;
-
+// ===== SALVAMENTO AUTOMÁTICO =====
+async function salvarNoBackend() {
+    const syncSpan = document.getElementById('syncStatus');
+    syncSpan.innerHTML = '⏳ Salvando...';
+    const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+    const month = getMesNumero(mesNome);
+    const logs = {};
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
         const nome = getNomeFromRow(row);
-        const status = ESCALA_MENSAL[nome]?.[diaIndex] || "";
-        const inp = row.cells[diaIndex+1]?.querySelector('.input-hora');
-        if (!inp) return;
-
-        if (isStatusBloqueado(status)) {
-            inp.disabled = true;
-            inp.readOnly = false;
-            inp.placeholder = "";
-        } else if (STATUS_EDITAVEL_LONGPRESS.includes(status)) {
-            inp.disabled = false;
-            inp.readOnly = false;
-            inp.placeholder = "0,0";
-            // Só limpa o campo se ele estiver vazio/zerado E não estiver
-            // exibindo um status válido (ex.: "FS") — evita apagar a label
-            // de status logo após confirmar uma troca via long-press.
-            const valorTexto = inp.value.trim();
-            const ehStatusValido = !!getStatusFromValue(valorTexto.toUpperCase());
-            const valorNumerico = parseHora(valorTexto);
-            if (valorNumerico === 0 && !ehStatusValido) {
-                inp.value = "";
-            }
-            if (status) inp.setAttribute('data-original-status', status);
-        } else {
-            inp.disabled = false;
-            inp.readOnly = false;
-            inp.placeholder = "0,0";
-            const valorAtual = parseHora(inp.value);
-            if (valorAtual === 0) {
-                inp.value = "";
-            }
-        }
-        atualizarCorInput(inp);
-    });
-
-    destacarColuna(diaIndex);
-    const th = document.querySelector(`#tableHeader th:nth-child(${diaIndex+2})`);
-    if (th) th.scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' });
-    const diaNum = String(diaIndex+1).padStart(2,'0');
-    document.getElementById('badgeDiaEdicao').textContent = `✏️ DIA ${diaNum}`;
-    document.getElementById('badgeDiaEdicao').classList.add('visivel');
-    document.getElementById('btnSairDia').style.display = 'inline-block';
-    document.querySelectorAll('.btn-dia').forEach((btn,i) => btn.classList.toggle('dia-editando', i===diaIndex));
-    showToast(`✏️ Dia ${diaNum} — Edição liberada (digite horas ou long-press em FR/FS/RE)`);
-}
-
-function sairEdicaoDia() {
-    if (diaEditandoIndex !== null) {
-        document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
-            const nome = getNomeFromRow(row);
-            const status = ESCALA_MENSAL[nome]?.[diaEditandoIndex] || "";
-            const inp = row.cells[diaEditandoIndex+1]?.querySelector('.input-hora');
-            if (inp) {
-                inp.placeholder = "";
-                const val = inp.value.trim();
-                if (val === "" && status !== "") inp.value = status;
-                atualizarCorInput(inp);
-                inp.disabled = true;
-                inp.readOnly = false;
+        logs[nome] = {};
+        row.querySelectorAll('.input-hora').forEach((inp, i) => {
+            const v = parseHora(inp.value);
+            if (v > 0) {
+                logs[nome][i+1] = v;
             }
         });
-        diaEditandoIndex = null;
-        document.getElementById('badgeDiaEdicao').classList.remove('visivel');
-        document.getElementById('btnSairDia').style.display = 'none';
-        document.querySelectorAll('.btn-dia').forEach(btn => btn.classList.remove('dia-editando'));
-        limparDestaqueColuna();
-        recalcularTudo();
-    }
-}
-
-function destacarColuna(diaIndex) {
-    limparDestaqueColuna();
-    const ci = diaIndex+1;
-    document.querySelectorAll('#tableHeader tr th')[ci]?.classList.add('col-ativa');
-    document.querySelectorAll('#tabelaHoras tbody tr').forEach(row => {
-        if (row.cells[ci]) row.cells[ci].classList.add('col-ativa');
     });
-}
-function limparDestaqueColuna() {
-    document.querySelectorAll('.col-ativa').forEach(el => el.classList.remove('col-ativa'));
-}
-
-function habilitarEdicaoStatus(inp, row, diaIndex) {
-    const nome = getNomeFromRow(row);
-    const statusAtual = ESCALA_MENSAL[nome]?.[diaIndex] || "";
-    if (!STATUS_EDITAVEL_LONGPRESS.includes(statusAtual)) {
-        showToast(`ℹ️ Status "${statusAtual}" não é editável por long press.`);
-        return;
-    }
-
-    inp.disabled = false;
-    inp.readOnly = false;
-    inp.classList.add('editando-longpress');
-    inp.select();
-    showToast(`✏️ Editando ${statusAtual} — digite novo status e pressione Enter`);
-
-    const onKeyDown = async (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const novoValor = inp.value.trim().toUpperCase();
-            if (novoValor && getStatusFromValue(novoValor)) {
-                inp.classList.remove('editando-longpress');
-                inp.readOnly = STATUS_EDITAVEL_LONGPRESS.includes(novoValor);
-                inp.disabled = isStatusBloqueado(novoValor);
-                inp.placeholder = "";
-                ESCALA_MENSAL[nome][diaIndex] = novoValor;
-                inp.setAttribute('data-original-status', novoValor);
-                atualizarCorInput(inp);
-                try {
-                    await salvarStatusNoBackend(nome, diaIndex, novoValor);
-                    showToast(`✅ Status → ${novoValor}`);
-                    recalcularTudo();
-                    ativarEdicaoDia(diaIndex);
-                } catch (error) {
-                    console.error("❌ Erro ao salvar status:", error);
-                    showToast(`❌ Erro ao salvar: ${error.message}`);
-                }
-            } else {
-                showToast('❌ Status inválido.');
-            }
-            inp.removeEventListener('keydown', onKeyDown);
-            inp.removeEventListener('blur', onBlur);
-        }
-    };
-    const onBlur = () => {
-        inp.classList.remove('editando-longpress');
-        inp.readOnly = true;
-        inp.placeholder = "";
-        inp.value = statusAtual;
-        atualizarCorInput(inp);
-        inp.removeEventListener('keydown', onKeyDown);
-        inp.removeEventListener('blur', onBlur);
-    };
-    inp.addEventListener('keydown', onKeyDown);
-    inp.addEventListener('blur', onBlur);
-}
-
-async function salvarStatusNoBackend(nome, dia, novoStatus) {
     try {
-        const mesInput = document.getElementById('campoMes');
-        const mesNome = mesInput.value.trim() || "Julho";
-        const month = getMesNumero(mesNome);
-        const response = await fetch('/api/update_status', {
+        const resp = await fetch('/api/data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pilot: nome, day: dia, status: novoStatus, month, year: anoAtual })
+            body: JSON.stringify({ password: 'livre', logs, month, year: anoAtual })
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        if (!data.success) throw new Error(data.erro || 'Erro desconhecido');
-    } catch(e) {
-        console.error('❌ Falha ao salvar status:', e);
-        throw e;
-    }
-}
-
-function mostrarComparativoDia(diaIndex) {
-    const mesAtual = document.getElementById('campoMes').value.trim() || "Julho";
-    const pilotos = [];
-    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
-        const nome = getNomeFromRow(row);
-        let total = 0;
-        row.querySelectorAll('.input-hora').forEach(inp => total += parseHora(inp.value));
-        const status = ESCALA_MENSAL[nome]?.[diaIndex] || "";
-        const grupo = getGrupo(nome);
-        pilotos.push({ nome, total, status, grupo });
-    });
-
-    // Separa por grupo
-    const grupos = ["CESSNA 206/210", "CARAVAN", "COPILOTO"];
-    const dadosPorGrupo = {};
-    grupos.forEach(g => dadosPorGrupo[g] = []);
-    pilotos.forEach(p => {
-        if (dadosPorGrupo[p.grupo]) dadosPorGrupo[p.grupo].push(p);
-        else dadosPorGrupo["CESSNA 206/210"].push(p); // fallback
-    });
-
-    // Ordena cada grupo por total decrescente
-    for (let g in dadosPorGrupo) {
-        dadosPorGrupo[g].sort((a,b) => b.total - a.total);
-    }
-
-    let html = `<div class="card-detalhe"><h2 style="text-align:center;">📊 Ranking de Horas — ${mesAtual}</h2>`;
-
-    const titulos = {
-        "CESSNA 206/210": "🔹 CMTES CESSNA 206/210",
-        "CARAVAN": "🛩️ CMTES CARAVAN 208",
-        "COPILOTO": "📋 COPILOTOS CARAVAN"
-    };
-
-    for (let grupo of grupos) {
-        const lista = dadosPorGrupo[grupo] || [];
-        if (lista.length === 0) continue;
-        const maxTotal = Math.max(...lista.map(p => p.total), 0.1);
-        html += `<h3 style="margin-top:16px;color:#3b2a1f;border-bottom:2px solid #ccaa7a;">${titulos[grupo]}</h3>`;
-        html += `<ul style="margin:4px 0 12px 0;padding-left:0;list-style:none;">`;
-        lista.forEach(p => {
-            let badgeStyle = 'background:#ffffff; color:#333; border:1px solid #999;';
-            if (p.status === 'FR') badgeStyle = 'background:#90ee90; color:#004d00; border:1px solid #008000; font-weight:bold;';
-            if (p.status === 'FS') badgeStyle = 'background:#ff9999; color:#660000; border:1px solid #cc0000; font-weight:bold;';
-            if (p.status === 'FE') badgeStyle = 'background:#ccffcc; color:#006600; border:1px solid #00cc00; font-weight:bold;';
-            if (p.status === 'RE') badgeStyle = 'background:#ffccff; color:#660066; border:1px solid #cc66cc; font-weight:bold;';
-            if (p.status === 'SO') badgeStyle = 'background:#e0f7fa; color:#006064; border:1px solid #00838f; font-weight:bold;';
-            const horasDisplay = p.total === 0 ? '—' : `${formatarHora(p.total)}h`;
-            const badgeStatus = p.status ? `<span style="padding:2px 8px;border-radius:12px;font-size:0.65rem;${badgeStyle}">${p.status}</span>` : '';
-            const perc = maxTotal > 0 ? (p.total / maxTotal) * 100 : 0;
-            html += `<li style="padding:6px 8px;border-bottom:1px solid #e8d5b0;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                    <span><strong>${p.nome}</strong> ${badgeStatus}</span>
-                    <strong style="color:${p.total>0?'#2a8a2a':'#aaa'}">${horasDisplay}</strong>
-                </div>
-                <div class="progress-bar-wrap"><div class="barra-fill" style="width:${perc}%"></div></div>
-            </li>`;
-        });
-        html += `</ul>`;
-    }
-
-    html += `<button class="btn-fechar" id="fecharDetalhe">Fechar</button></div>`;
-    const modal = document.createElement('div');
-    modal.className = 'modal-detalhe';
-    modal.innerHTML = html;
-    document.body.appendChild(modal);
-    modal.querySelector('#fecharDetalhe').onclick = () => modal.remove();
-    modal.onclick = e => { if (e.target === modal) modal.remove(); };
-}
-
-async function mostrarDisponiveis(diaRef) {
-    if (diaRef === null) { showToast("⚠️ Selecione um dia primeiro."); return; }
-    const diaSeguinte = diaRef + 1;
-    if (diaSeguinte >= DIAS) { showToast("⚠️ Último dia do mês."); return; }
-    try {
-        const mesInput = document.getElementById('campoMes');
-        const mesNome = mesInput.value.trim() || "Julho";
-        const month = getMesNumero(mesNome);
-        const res = await fetch(`/api/available_commanders/${diaSeguinte}?month=${month}&year=${anoAtual}`);
-        const data = await res.json();
-        let html = `<div class="card-detalhe"><h2 style="text-align:center;">👥 Disponíveis — Dia ${String(diaSeguinte+1).padStart(2,'00')}</h2>`;
-        const titulos = {
-            "CESSNA 206/210": "🔹 CMTES CESSNA 206/210",
-            "CARAVAN": "🛩️ CMTES CARAVAN 208",
-            "COPILOTO": "📋 COPILOTOS CARAVAN"
-        };
-        for (let grupo of ["CESSNA 206/210", "CARAVAN", "COPILOTO"]) {
-            if (!data[grupo]) continue;
-            html += `<h3 style="margin-top:16px;color:#3b2a1f;border-bottom:2px solid #ccaa7a;">${titulos[grupo]}</h3>`;
-            if (data[grupo].length > 0) {
-                html += `<ul style="margin:4px 0 12px 0;padding-left:0;list-style:none;">`;
-                data[grupo].forEach(c => {
-                    let badgeStyle = 'background:#ffffff; color:#333; border:1px solid #999;';
-                    if (c.status === 'FR') badgeStyle = 'background:#90ee90; color:#004d00; border:1px solid #008000; font-weight:bold;';
-                    if (c.status === 'FS') badgeStyle = 'background:#ff9999; color:#660000; border:1px solid #cc0000; font-weight:bold;';
-                    if (c.status === 'FE') badgeStyle = 'background:#ccffcc; color:#006600; border:1px solid #00cc00; font-weight:bold;';
-                    if (c.status === 'RE') badgeStyle = 'background:#ffccff; color:#660066; border:1px solid #cc66cc; font-weight:bold;';
-                    if (c.status === 'SO') badgeStyle = 'background:#e0f7fa; color:#006064; border:1px solid #00838f; font-weight:bold;';
-                    html += `<li style="padding:6px 8px;display:flex;justify-content:space-between;border-bottom:1px solid #e8d5b0;">
-                        <span><strong>${c.name}</strong> <span style="padding:2px 8px;border-radius:12px;font-size:0.65rem;${badgeStyle}">${c.status}</span></span>
-                        <strong>${c.horas_totais.toFixed(1)}h</strong>
-                    </li>`;
-                });
-                html += `</ul>`;
-            } else {
-                html += `<p style="color:#7a6b58;font-style:italic;padding-left:8px;">Nenhum disponível.</p>`;
-            }
+        const respData = await resp.json();
+        if (!resp.ok || !respData.success) {
+            throw new Error(respData.erro || `HTTP ${resp.status}`);
         }
-        html += `<button class="btn-fechar" id="fecharDisponiveis">Fechar</button></div>`;
-        const modal = document.createElement('div');
-        modal.className = 'modal-detalhe';
-        modal.innerHTML = html;
-        document.body.appendChild(modal);
-        modal.querySelector('#fecharDisponiveis').onclick = () => modal.remove();
-        modal.onclick = e => { if (e.target === modal) modal.remove(); };
-    } catch(e) { showToast("❌ Erro ao carregar disponíveis."); }
+        syncSpan.innerHTML = '✅ Salvo';
+        setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
+    } catch(e) {
+        console.error(e);
+        syncSpan.innerHTML = '❌ Erro ao salvar';
+        showToast(`❌ Erro ao salvar: ${e.message}`, 4000);
+    }
 }
 
-function mostrarMenuDia(diaIndex, btn) {
-    selecionarDia(diaIndex, btn);
-    const diaNum = String(diaIndex+1).padStart(2,'0');
-    const modal = document.createElement('div');
-    modal.className = 'modal-menu-dia';
-    modal.innerHTML = `
-        <div class="card-menu-dia">
-            <h3>📅 Dia ${diaNum}</h3>
-            <div class="menu-dia-opcoes">
-                ${isEditing ? `<button class="btn-menu-opcao" id="menuEditar">✏️ Editar horas</button>` : ''}
-                <button class="btn-menu-opcao" id="menuComparativo">📊 Ranking de horas</button>
-                <button class="btn-menu-opcao" id="menuDisponiveis">👥 Disponíveis / Escala</button>
-                <button class="btn-menu-cancelar" id="menuCancelar">Cancelar</button>
-            </div>
-        </div>`;
-    document.body.appendChild(modal);
-    if (isEditing) modal.querySelector('#menuEditar').onclick = () => { modal.remove(); ativarEdicaoDia(diaIndex); };
-    modal.querySelector('#menuComparativo').onclick = () => { modal.remove(); mostrarComparativoDia(diaIndex); };
-    modal.querySelector('#menuDisponiveis').onclick = () => { modal.remove(); mostrarDisponiveis(diaIndex); };
-    modal.querySelector('#menuCancelar').onclick = () => modal.remove();
-    modal.onclick = e => { if (e.target === modal) modal.remove(); };
-}
-
-function getMesNumero(nomeMes) {
-    const mapa = { "janeiro":1, "fevereiro":2, "março":3, "abril":4, "maio":5, "junho":6, "julho":7, "agosto":8, "setembro":9, "outubro":10, "novembro":11, "dezembro":12 };
-    return mapa[nomeMes.toLowerCase()] || new Date().getMonth() + 1;
-}
-
+// ===== CARREGAR DADOS DO BACKEND =====
 async function carregarDoBackend() {
     const syncSpan = document.getElementById('syncStatus');
     syncSpan.innerHTML = '⏳ Carregando...';
@@ -893,13 +515,20 @@ async function carregarDoBackend() {
             throw new Error('Resposta incompleta de dados');
         }
 
-        // === MUDANÇA 3: escala vem do backend ===
-        ESCALA_MENSAL = data.escala || {};
-
+        LOGS = data.logs || {};
         atualizarDias();
 
+        // Montar cabeçalhos com dia da semana
         const thead = document.getElementById('tableHeader');
-        thead.innerHTML = `<tr><th>👤 PILOTO</th>${Array.from({length:DIAS},(_,i)=>`<th>${String(i+1).padStart(2,'00')}</th>`).join('')}<th>⭐ TOTAL</th></tr>`;
+        let headerHtml = `<tr><th>👤 PILOTO</th>`;
+        for (let i = 0; i < DIAS; i++) {
+            const diaNum = i + 1;
+            const dataObj = new Date(anoAtual, mesNum-1, diaNum);
+            const diaSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][dataObj.getDay()];
+            headerHtml += `<th>${String(diaNum).padStart(2,'00')} ${diaSemana}</th>`;
+        }
+        headerHtml += `<th>⭐ TOTAL</th></tr>`;
+        thead.innerHTML = headerHtml;
 
         const tbody = document.getElementById('planilhaBody');
         tbody.innerHTML = '';
@@ -931,69 +560,46 @@ async function carregarDoBackend() {
                     inp.classList.add('input-hora');
                     inp.placeholder = '';
 
-                    let valor = data.logs[p.name]?.[i+1] || 0;
-                    const statusOriginal = ESCALA_MENSAL[p.name]?.[i] || "";
-
+                    const valor = (LOGS[p.name] && LOGS[p.name][i+1]) ? LOGS[p.name][i+1] : 0;
                     if (valor > 0) {
                         inp.value = formatarHora(valor);
                         total += valor;
-                    } else if (statusOriginal && statusOriginal !== "SO") {
-                        inp.value = statusOriginal;
                     } else {
-                        inp.value = "";
+                        inp.value = '';
                     }
-
-                    atualizarCorInput(inp);
-                    inp.disabled = true;
-
-                    if (statusOriginal && ["FR","FS","RE"].includes(statusOriginal)) {
-                        inp.setAttribute('data-original-status', statusOriginal);
-                    }
-
-                    // ===== LONG PRESS =====
-                    let lpTimer = null;
-                    inp.addEventListener('touchstart', () => {
-                        if (!isEditing || diaEditandoIndex !== i) return;
-                        lpTimer = setTimeout(() => habilitarEdicaoStatus(inp, row, i), 600);
-                    });
-                    inp.addEventListener('touchend', () => clearTimeout(lpTimer));
-                    inp.addEventListener('touchcancel', () => clearTimeout(lpTimer));
-                    let mouseTimer = null;
-                    inp.addEventListener('mousedown', () => {
-                        if (!isEditing || diaEditandoIndex !== i) return;
-                        mouseTimer = setTimeout(() => habilitarEdicaoStatus(inp, row, i), 600);
-                    });
-                    inp.addEventListener('mouseup', () => clearTimeout(mouseTimer));
-                    inp.addEventListener('mouseleave', () => clearTimeout(mouseTimer));
 
                     inp.addEventListener('input', function() {
-                        if (diaEditandoIndex === i && isEditing && !this.disabled && !this.readOnly) {
-                            atualizarTotalLinha(row);
-                            recalcularTudo();
-                            if (password) {
-                                clearTimeout(window._salvarDebounce);
-                                window._salvarDebounce = setTimeout(salvarNoBackend, 700);
-                            }
-                        }
+                        // Ao digitar, atualiza a linha e o total geral
+                        atualizarTotalLinha(row);
+                        recalcularTudo();
+                        // Debounce para salvar automaticamente após 1s de inatividade
+                        clearTimeout(this._saveTimer);
+                        this._saveTimer = setTimeout(() => {
+                            salvarNoBackend();
+                        }, 1000);
                     });
+
                     inp.addEventListener('blur', function() {
-                        if (diaEditandoIndex === i && isEditing && !this.disabled && !this.readOnly) {
-                            const v = parseHora(this.value);
-                            const st = getStatusFromValue(this.value.trim().toUpperCase());
-                            if (v > 0) {
-                                this.value = formatarHora(v);
-                            } else if (st) {
-                                this.value = st;
-                            }
-                            atualizarCorInput(this);
-                            atualizarTotalLinha(row);
-                            recalcularTudo();
-                            if (password) {
-                                clearTimeout(window._salvarDebounce);
-                                salvarNoBackend();
-                            }
+                        // Ao sair do campo, formata e salva imediatamente
+                        const v = parseHora(this.value);
+                        if (v > 0) {
+                            this.value = formatarHora(v);
+                        } else {
+                            this.value = '';
+                        }
+                        atualizarTotalLinha(row);
+                        recalcularTudo();
+                        salvarNoBackend();
+                    });
+
+                    // Enter também salva
+                    inp.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            this.blur();
                         }
                     });
+
                     td.appendChild(inp);
                     row.appendChild(td);
                 }
@@ -1006,7 +612,6 @@ async function carregarDoBackend() {
         }
         recalcularTudo();
         criarBotoesDias();
-        sairEdicaoDia();
         syncSpan.innerHTML = '✅ Carregado';
         setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 2000);
     } catch(e) {
@@ -1016,76 +621,7 @@ async function carregarDoBackend() {
     }
 }
 
-async function salvarNoBackend() {
-    if (!isEditing || !password || diaEditandoIndex === null) return;
-    const syncSpan = document.getElementById('syncStatus');
-    syncSpan.innerHTML = '⏳ Salvando...';
-    const logs = {};
-    const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
-    const month = getMesNumero(mesNome);
-    // Envia apenas a coluna do dia atualmente em edição
-    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
-        const nome = getNomeFromRow(row);
-        const inp = row.cells[diaEditandoIndex + 1]?.querySelector('.input-hora');
-        if (!inp) return;
-        const v = parseHora(inp.value);
-        logs[nome] = { [diaEditandoIndex + 1]: v };
-    });
-    try {
-        const resp = await fetch('/api/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password, logs, month, year: anoAtual })
-        });
-        const respData = await resp.json();
-        if (!resp.ok || !respData.success) {
-            throw new Error(respData.erro || `HTTP ${resp.status}`);
-        }
-        syncSpan.innerHTML = '✅ Salvo';
-        setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
-    } catch(e) {
-        console.error(e);
-        syncSpan.innerHTML = '❌ Erro ao salvar';
-        showToast(`❌ Erro ao salvar: ${e.message}`, 4000);
-    }
-}
-
-async function salvarTudoNoBackend() {
-    if (!isEditing || !password) return;
-    const syncSpan = document.getElementById('syncStatus');
-    syncSpan.innerHTML = '⏳ Salvando...';
-    const logs = {};
-    const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
-    const month = getMesNumero(mesNome);
-    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
-        const nome = getNomeFromRow(row);
-        logs[nome] = {};
-        row.querySelectorAll('.input-hora').forEach((inp, i) => {
-            const v = parseHora(inp.value);
-            if (v > 0 || i === diaEditandoIndex) {
-                logs[nome][i+1] = v;
-            }
-        });
-    });
-    try {
-        const resp = await fetch('/api/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password, logs, month, year: anoAtual })
-        });
-        const respData = await resp.json();
-        if (!resp.ok || !respData.success) {
-            throw new Error(respData.erro || `HTTP ${resp.status}`);
-        }
-        syncSpan.innerHTML = '✅ Salvo';
-        setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
-    } catch(e) {
-        console.error(e);
-        syncSpan.innerHTML = '❌ Erro ao salvar';
-        showToast(`❌ Erro ao salvar: ${e.message}`, 4000);
-    }
-}
-
+// ===== BOTÕES DE DIAS (agora só mostram total, sem menu) =====
 function criarBotoesDias() {
     const container = document.getElementById('botoesDias');
     container.innerHTML = '';
@@ -1093,64 +629,90 @@ function criarBotoesDias() {
         const btn = document.createElement('button');
         btn.classList.add('btn-dia');
         btn.setAttribute('data-dia', i);
-        btn.innerHTML = `<span class="dia-num">${String(i+1).padStart(2,'00')}</span><span class="dia-total"></span>`;
-        let touched = false;
-        btn.addEventListener('touchstart', (e) => { e.preventDefault(); touched = true; }, { passive: false });
-        btn.addEventListener('touchend', (e) => { e.preventDefault(); if (touched) { touched = false; mostrarMenuDia(i, btn); } });
-        btn.addEventListener('touchcancel', () => { touched = false; });
-        btn.onclick = () => mostrarMenuDia(i, btn);
+        const diaNum = i+1;
+        const dataObj = new Date(anoAtual, getMesNumero(document.getElementById('campoMes').value.trim())-1, diaNum);
+        const diaSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][dataObj.getDay()];
+        btn.innerHTML = `<span class="dia-num">${String(diaNum).padStart(2,'00')} ${diaSemana}</span><span class="dia-total"></span>`;
+        btn.onclick = () => {
+            // apenas destaca visualmente, sem menu
+            document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-selecionado'));
+            btn.classList.add('dia-selecionado');
+        };
         container.appendChild(btn);
     }
     atualizarTotaisBotoesDias();
 }
 
-function selecionarDia(i, btn) {
-    document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-selecionado'));
-    btn.classList.add('dia-selecionado');
-    diaReferencia = i;
-}
-
-function exibirModalSenha() {
-    return new Promise((resolve) => {
-        const modalDiv = document.createElement('div');
-        modalDiv.className = 'modal-senha';
-        modalDiv.innerHTML = `
-            <div class="card-senha">
-                <h3>🔐 AUTENTICAÇÃO</h3>
-                <p>Digite a senha para editar:</p>
-                <input type="password" id="senhaInput" placeholder="Senha" autocomplete="off">
-                <div class="botoes-senha">
-                    <button class="btn-modal" id="confirmarSenha">Confirmar</button>
-                    <button class="btn-modal" id="cancelarSenha">Cancelar</button>
-                </div>
-            </div>`;
-        document.body.appendChild(modalDiv);
-        const inputSenha = modalDiv.querySelector('#senhaInput');
-        const confirmar = () => { const s=inputSenha.value; modalDiv.remove(); resolve(s); };
-        const cancelar = () => { modalDiv.remove(); resolve(null); };
-        modalDiv.querySelector('#confirmarSenha').onclick = confirmar;
-        modalDiv.querySelector('#cancelarSenha').onclick = cancelar;
-        inputSenha.focus();
-        inputSenha.addEventListener('keypress', e => { if(e.key==='Enter') confirmar(); });
+// ===== RANKING =====
+function mostrarComparativoDia() {
+    const mesAtual = document.getElementById('campoMes').value.trim() || "Julho";
+    const pilotos = [];
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const nome = getNomeFromRow(row);
+        let total = 0;
+        row.querySelectorAll('.input-hora').forEach(inp => total += parseHora(inp.value));
+        const grupo = getGrupo(nome);
+        pilotos.push({ nome, total, grupo });
     });
+
+    const grupos = ["CESSNA 206/210", "CARAVAN", "COPILOTO"];
+    const dadosPorGrupo = {};
+    grupos.forEach(g => dadosPorGrupo[g] = []);
+    pilotos.forEach(p => {
+        if (dadosPorGrupo[p.grupo]) dadosPorGrupo[p.grupo].push(p);
+        else dadosPorGrupo["CESSNA 206/210"].push(p);
+    });
+
+    for (let g in dadosPorGrupo) {
+        dadosPorGrupo[g].sort((a,b) => b.total - a.total);
+    }
+
+    let html = `<div class="card-detalhe"><h2 style="text-align:center;">📊 Ranking de Horas — ${mesAtual}</h2>`;
+    const titulos = {
+        "CESSNA 206/210": "🔹 CMTES CESSNA 206/210",
+        "CARAVAN": "🛩️ CMTES CARAVAN 208",
+        "COPILOTO": "📋 COPILOTOS CARAVAN"
+    };
+    for (let grupo of grupos) {
+        const lista = dadosPorGrupo[grupo] || [];
+        if (lista.length === 0) continue;
+        const maxTotal = Math.max(...lista.map(p => p.total), 0.1);
+        html += `<h3 style="margin-top:16px;color:#3b2a1f;border-bottom:2px solid #ccaa7a;">${titulos[grupo]}</h3>`;
+        html += `<ul style="margin:4px 0 12px 0;padding-left:0;list-style:none;">`;
+        lista.forEach(p => {
+            const perc = maxTotal > 0 ? (p.total / maxTotal) * 100 : 0;
+            html += `<li style="padding:6px 8px;border-bottom:1px solid #e8d5b0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <span><strong>${p.nome}</strong></span>
+                    <strong style="color:${p.total>0?'#2a8a2a':'#aaa'}">${p.total === 0 ? '—' : formatarHora(p.total)+'h'}</strong>
+                </div>
+                <div class="progress-bar-wrap"><div class="barra-fill" style="width:${perc}%"></div></div>
+            </li>`;
+        });
+        html += `</ul>`;
+    }
+    html += `<button class="btn-fechar" id="fecharDetalhe">Fechar</button></div>`;
+    const modal = document.createElement('div');
+    modal.className = 'modal-detalhe';
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    modal.querySelector('#fecharDetalhe').onclick = () => modal.remove();
+    modal.onclick = e => { if (e.target === modal) modal.remove(); };
 }
 
+// ===== AJUDA =====
 function mostrarAjuda() {
     const itens = [
-        { cor: '#ffb366', texto: 'DM / CM — Dispensa Médica / Revalidação' },
-        { cor: '#99ccff', texto: 'VO / CQ / TN — Em Voo / Voo Cheque / Trein. Voo' },
-        { cor: '#ffff99', texto: 'EA / TR — Exp. Administrativo / Trein. Solo' },
-        { cor: '#90ee90', texto: 'FR — Folga Regulamentar (agora editável com horas)' },
-        { cor: '#ff9999', texto: 'FS — Folga Social (agora editável com horas)' },
-        { cor: '#ccffcc', texto: 'FE — Férias (bloqueada)' },
-        { cor: '#ffccff', texto: 'RE — Reserva na Empresa (agora editável com horas)' },
-        { cor: '#ffffff', texto: 'SO — Sobreaviso (livre pra digitar horas)' },
+        { cor: '#fff1b5', texto: 'Célula com fundo amarelo → possui horas lançadas' },
+        { cor: '#ffb366', texto: 'Célula com fundo laranja → 7º dia após 6 trabalhados (folga sugerida)' },
+        { cor: '#e7dbbc', texto: 'Total de horas por piloto (soma automática)' },
+        { cor: '#4c351e', texto: 'Número sobrescrito ao lado do nome → contagem de folgas (dias sem horas)' },
     ];
     let html = `<div class="card-ajuda"><h3 style="text-align:center;">📖 Legenda</h3>`;
     itens.forEach(item => {
-        html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:${item.cor};border:1px solid #ccc;">${item.texto.split('—')[0].trim()}</div><span>${item.texto.split('—')[1]?.trim() || ''}</span></div>`;
+        html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:${item.cor};border:1px solid #999;font-size:0.7rem;">&nbsp;</div><span>${item.texto}</span></div>`;
     });
-    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;"><strong>Toque no dia</strong> → menu<br><strong>Modo edição</strong> → digite horas direto em FR/FS/RE<br><strong>Long press</strong> → trocar status</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
+    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">✅ Digite horas livremente em qualquer dia.<br>Salvamento automático ao sair do campo.</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
     const modal = document.createElement('div');
     modal.className = 'modal-ajuda';
     modal.innerHTML = html;
@@ -1158,214 +720,101 @@ function mostrarAjuda() {
     modal.querySelector('#fecharAjuda').onclick = () => modal.remove();
 }
 
-async function login() {
-    if (isEditing) return;
-    const senha = await exibirModalSenha();
-    if (senha === "Emerson" || senha === "Bispo") {
-        password = senha;
-        isEditing = true;
-        document.getElementById('statusBadge').innerHTML = '🔓 EDIÇÃO';
-        document.getElementById('statusBadge').classList.add('admin-mode');
-        document.getElementById('editModeChip').innerHTML = '✏️ EDIÇÃO ATIVO';
-        document.getElementById('btnLimpar').disabled = false;
-        document.getElementById('btnBloquear').disabled = false;
-        document.getElementById('campoMes').disabled = false;
-        showToast("✅ Modo edição ativo. Digite horas em FR/FS/RE.");
-        await carregarDoBackend();
-    } else if (senha !== null) {
-        showToast("❌ Senha incorreta.");
-    }
-}
-
-function bloquear() {
-    if (!isEditing) return;
-    isEditing = false;
-    password = "";
-    sairEdicaoDia();
-    document.getElementById('statusBadge').innerHTML = '🔒 LEITURA';
-    document.getElementById('statusBadge').classList.remove('admin-mode');
-    document.getElementById('editModeChip').innerHTML = '📖 VISUALIZAÇÃO';
-    document.getElementById('btnLimpar').disabled = true;
-    document.getElementById('btnBloquear').disabled = true;
-    document.getElementById('campoMes').disabled = true;
-    showToast("🔒 Modo leitura ativado.");
-}
-
-function limpar() {
-    if (!isEditing) return;
-    if (confirm("Limpar todos os valores de horas?")) {
-        document.querySelectorAll('.input-hora').forEach(inp => {
-            inp.value = inp.getAttribute('data-original-status') || "";
-            atualizarCorInput(inp);
-        });
-        recalcularTudo();
-        salvarTudoNoBackend();
-        showToast("🧹 Valores limpos.");
-    }
-}
-
 // ===== NAVEGAÇÃO ENTRE MESES =====
 document.getElementById('btnMesAnterior').addEventListener('click', function() {
-    if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
     const mesAtual = document.getElementById('campoMes').value.trim();
     const mesNum = getMesNumero(mesAtual);
     let novoMesNum = mesNum - 1;
     if (novoMesNum < 1) { novoMesNum = 12; anoAtual -= 1; }
-    const novoMesNome = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][novoMesNum-1];
+    const novoMesNome = getNomeMes(novoMesNum);
     document.getElementById('campoMes').value = novoMesNome;
     salvarMesNoStorage(novoMesNome);
     carregarDoBackend();
-    entrarNaSalaDoMes();
 });
 
 document.getElementById('btnMesProximo').addEventListener('click', function() {
-    if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
     const mesAtual = document.getElementById('campoMes').value.trim();
     const mesNum = getMesNumero(mesAtual);
     let novoMesNum = mesNum + 1;
     if (novoMesNum > 12) { novoMesNum = 1; anoAtual += 1; }
-    const novoMesNome = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][novoMesNum-1];
+    const novoMesNome = getNomeMes(novoMesNum);
     document.getElementById('campoMes').value = novoMesNome;
     salvarMesNoStorage(novoMesNome);
     carregarDoBackend();
-    entrarNaSalaDoMes();
+});
+
+document.getElementById('campoMes').addEventListener('change', function() {
+    salvarMesNoStorage(this.value);
+    carregarDoBackend();
 });
 
 // ===== INICIALIZAÇÃO =====
-document.getElementById('btnDesbloquear').onclick = login;
-document.getElementById('btnBloquear').onclick = bloquear;
-document.getElementById('btnLimpar').onclick = limpar;
-document.getElementById('btnSairDia').onclick = sairEdicaoDia;
 document.getElementById('btnAjuda').onclick = mostrarAjuda;
 
-document.getElementById('campoMes').addEventListener('change', function() {
-    if (isEditing) {
-        salvarMesNoStorage(this.value);
-        carregarDoBackend();
-        entrarNaSalaDoMes();
-    }
-});
+// Botão ranking (adicionei um botão extra no topo? Vou criar um na barra de ações)
+const topActions = document.querySelector('.top-actions');
+const rankBtn = document.createElement('button');
+rankBtn.className = 'btn-skeuo';
+rankBtn.innerHTML = '📊 RANKING';
+rankBtn.onclick = mostrarComparativoDia;
+topActions.appendChild(rankBtn);
 
-// =====================================================================
-// ===== TEMPO REAL (Socket.IO) ==========================================
-// =====================================================================
-// Requer que o backend (app.py) tenha Flask-SocketIO habilitado e emita,
-// após cada commit no banco, os eventos:
-//   - 'logs_atualizados' com payload { pilot, day, value, month, year }
-//   - 'status_atualizado' com payload { pilot, day, status, month, year }
-// Também é esperado que o cliente possa entrar numa "sala" por mês/ano via
-// evento 'join_month' com { month, year }, para não receber updates de
-// meses que não está olhando. Se o backend ainda não emitir esses eventos,
-// o app continua funcionando normalmente no modo antigo (salvar por fetch),
-// apenas sem o indicador de tempo real ativo.
-let socket = null;
-
-function iniciarSocket() {
-    if (typeof io === 'undefined') {
-        console.warn('Socket.IO não carregado — seguindo apenas com fetch/debounce.');
-        return;
-    }
-    if (socket) return;
-
-    // Apenas polling: o backend roda em gunicorn com worker gthread
-    // (sem eventlet/gevent), então upgrade para WebSocket não é suportado.
-    // Long-polling entrega o mesmo resultado prático (~1-2s de latência).
-    socket = io({ transports: ['polling'] });
-
-    socket.on('connect', () => {
-        marcarStatusTempoReal(true);
-        entrarNaSalaDoMes();
-    });
-
-    socket.on('disconnect', () => marcarStatusTempoReal(false));
-    socket.on('connect_error', () => marcarStatusTempoReal(false));
-
-    socket.on('logs_atualizados', (payload) => {
-        aplicarAtualizacaoRemotaDeHoras(payload);
-    });
-
-    socket.on('status_atualizado', (payload) => {
-        aplicarAtualizacaoRemotaDeStatus(payload);
-    });
-}
-
-function entrarNaSalaDoMes() {
-    if (!socket || !socket.connected) return;
-    const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
-    socket.emit('join_month', { month: getMesNumero(mesNome), year: anoAtual });
-}
-
-function marcarStatusTempoReal(ativo) {
-    const syncSpan = document.getElementById('syncStatus');
-    syncSpan.classList.toggle('rt-on', ativo);
-    syncSpan.classList.toggle('rt-off', !ativo);
-}
-
-function payloadEhDoMesAtual(payload) {
-    if (!payload) return false;
-    const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
-    const mesAtualNum = getMesNumero(mesNome);
-    return Number(payload.month) === Number(mesAtualNum) && Number(payload.year) === Number(anoAtual);
-}
-
-// Atualiza uma única célula de horas recebida de outro dispositivo, sem
-// recarregar a tabela inteira — evita "piscar" a tela e mantém o campo
-// que o usuário local estiver editando intacto.
-function aplicarAtualizacaoRemotaDeHoras(payload) {
-    if (!payloadEhDoMesAtual(payload)) return;
-    const { pilot, day, value } = payload;
-    if (!pilot || !day) return;
-
-    // Não sobrescreve o campo se for exatamente o dia que este usuário
-    // está editando agora (evita conflito visual com a digitação local).
-    if (diaEditandoIndex === (day - 1) && isEditing) return;
-
-    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
-        if (getNomeFromRow(row) !== pilot) return;
-        const inp = row.cells[day]?.querySelector('.input-hora');
-        if (!inp) return;
-        const v = Number(value) || 0;
-        inp.value = v > 0 ? formatarHora(v) : (inp.getAttribute('data-original-status') || "");
-        atualizarCorInput(inp);
-        atualizarTotalLinha(row);
-    });
-    recalcularTudo();
-}
-
-function aplicarAtualizacaoRemotaDeStatus(payload) {
-    if (!payloadEhDoMesAtual(payload)) return;
-    const { pilot, day, status } = payload;
-    if (!pilot || day === undefined || !status) return;
-
-    if (!ESCALA_MENSAL[pilot]) ESCALA_MENSAL[pilot] = {};
-    ESCALA_MENSAL[pilot][day] = status;
-
-    if (diaEditandoIndex === day && isEditing) return;
-
-    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
-        if (getNomeFromRow(row) !== pilot) return;
-        const inp = row.cells[day + 1]?.querySelector('.input-hora');
-        if (!inp) return;
-        const horasAtuais = parseHora(inp.value);
-        if (horasAtuais === 0) {
-            inp.value = status === "SO" ? "" : status;
-        }
-        inp.setAttribute('data-original-status', status);
-        atualizarCorInput(inp);
-    });
-    recalcularTudo();
-}
-
+// Carregar mês salvo ou atual
 const mesSalvo = obterMesDoStorage();
 const dataAtual = new Date();
-const mesAtualNum = dataAtual.getMonth() + 1;
-const mesAtualNome = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][mesAtualNum-1];
+const mesAtualNome = getNomeMes(dataAtual.getMonth() + 1);
 if (mesSalvo) {
     document.getElementById('campoMes').value = mesSalvo;
 } else {
     document.getElementById('campoMes').value = mesAtualNome;
 }
+anoAtual = dataAtual.getFullYear();
+
 carregarDoBackend();
+
+// ===== SOCKET.IO (opcional, para atualizações em tempo real) =====
+let socket = null;
+function iniciarSocket() {
+    if (typeof io === 'undefined') return;
+    if (socket) return;
+    socket = io({ transports: ['polling'] });
+    socket.on('connect', () => {
+        document.getElementById('syncStatus').classList.add('rt-on');
+        document.getElementById('syncStatus').classList.remove('rt-off');
+        entrarNaSalaDoMes();
+    });
+    socket.on('disconnect', () => {
+        document.getElementById('syncStatus').classList.remove('rt-on');
+        document.getElementById('syncStatus').classList.add('rt-off');
+    });
+    socket.on('connect_error', () => {
+        document.getElementById('syncStatus').classList.remove('rt-on');
+        document.getElementById('syncStatus').classList.add('rt-off');
+    });
+    socket.on('logs_atualizados', (payload) => {
+        if (!payload) return;
+        const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+        const mesAtualNum = getMesNumero(mesNome);
+        if (Number(payload.month) !== Number(mesAtualNum) || Number(payload.year) !== Number(anoAtual)) return;
+        const { pilot, day, value } = payload;
+        if (!pilot || day === undefined) return;
+        document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+            if (getNomeFromRow(row) !== pilot) return;
+            const inp = row.cells[day]?.querySelector('.input-hora');
+            if (!inp) return;
+            const v = Number(value) || 0;
+            inp.value = v > 0 ? formatarHora(v) : '';
+            atualizarCorInput(inp);
+            atualizarTotalLinha(row);
+        });
+        recalcularTudo();
+    });
+}
+function entrarNaSalaDoMes() {
+    if (!socket || !socket.connected) return;
+    const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+    socket.emit('join_month', { month: getMesNumero(mesNome), year: anoAtual });
+}
 iniciarSocket();
 </script>
 </body>
