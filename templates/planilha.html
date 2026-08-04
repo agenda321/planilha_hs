@@ -492,7 +492,8 @@ let DIAS = 31;
 let anoAtual = new Date().getFullYear();
 let isEditing = false;
 let password = "";
-let diaEditandoIndex = null; // dia que está sendo editado (coluna)
+let diaEditandoIndex = null;
+let isSaving = false; // <-- CONTROLE DE SALVAMENTO SIMULTÂNEO
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 function getMesNumero(nomeMes) {
@@ -657,25 +658,21 @@ function atualizarTotaisBotoesDias() {
     });
 }
 
-// ===== EDIÇÃO POR COLUNA (selecionar dia) =====
+// ===== EDIÇÃO POR COLUNA =====
 function ativarEdicaoDia(diaIndex) {
     if (!isEditing) {
         showToast("⚠️ Desbloqueie a planilha primeiro.");
         return;
     }
-    // Sair da edição de coluna anterior
     sairEdicaoDia();
     diaEditandoIndex = diaIndex;
 
-    // Desabilita todos os inputs primeiro
     document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = true);
-    // Habilita apenas os inputs da coluna selecionada
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
         const inp = row.cells[diaIndex + 1]?.querySelector('.input-hora');
         if (inp) inp.disabled = false;
     });
 
-    // Destaque na coluna
     document.querySelectorAll('.col-ativa').forEach(el => el.classList.remove('col-ativa'));
     document.querySelectorAll('#tableHeader th')[diaIndex + 1]?.classList.add('col-ativa');
     document.querySelectorAll('#tabelaHoras tbody tr').forEach(row => {
@@ -689,7 +686,6 @@ function ativarEdicaoDia(diaIndex) {
 
 function sairEdicaoDia() {
     if (diaEditandoIndex !== null) {
-        // Reabilita todos os inputs (se estiver em modo edição)
         document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = !isEditing);
         document.querySelectorAll('.col-ativa').forEach(el => el.classList.remove('col-ativa'));
         document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-editando'));
@@ -703,10 +699,9 @@ function sairEdicaoDia() {
 function setEditMode(enable) {
     isEditing = enable;
     if (!enable) {
-        sairEdicaoDia(); // sai da edição de coluna
+        sairEdicaoDia();
         document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = true);
     } else {
-        // Em modo edição, todos os inputs ficam desabilitados até que um dia seja selecionado
         document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = true);
     }
     document.getElementById('btnBloquear').disabled = !enable;
@@ -761,38 +756,46 @@ function bloquear() {
     password = "";
 }
 
-// ===== SALVAMENTO =====
+// ===== SALVAMENTO (COM TRAVA =====
 async function salvarNoBackend() {
-    if (!isEditing) return;
+    if (!isEditing || isSaving) return;
+    isSaving = true;
     const syncSpan = document.getElementById('syncStatus');
     syncSpan.innerHTML = '⏳ Salvando...';
-    const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
-    const month = getMesNumero(mesNome);
-    const logs = {};
-    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
-        const nome = getNomeFromRow(row);
-        logs[nome] = {};
-        row.querySelectorAll('.input-hora').forEach((inp, i) => {
-            const v = parseHora(inp.value);
-            if (v > 0) logs[nome][i+1] = v;
-        });
-    });
+
     try {
+        const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+        const month = getMesNumero(mesNome);
+        const logs = {};
+
+        document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+            const nome = getNomeFromRow(row);
+            logs[nome] = {};
+            row.querySelectorAll('.input-hora').forEach((inp, i) => {
+                const v = parseHora(inp.value);
+                if (v > 0) logs[nome][i+1] = v;
+            });
+        });
+
         const resp = await fetch('/api/data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password, logs, month, year: anoAtual })
         });
+
         const respData = await resp.json();
         if (!resp.ok || !respData.success) {
             throw new Error(respData.erro || `HTTP ${resp.status}`);
         }
+
         syncSpan.innerHTML = '✅ Salvo';
         setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
     } catch(e) {
         console.error(e);
         syncSpan.innerHTML = '❌ Erro ao salvar';
         showToast(`❌ Erro ao salvar: ${e.message}`, 4000);
+    } finally {
+        isSaving = false;
     }
 }
 
@@ -811,7 +814,6 @@ async function carregarDoBackend() {
         LOGS = data.logs || {};
         atualizarDias();
 
-        // Montar cabeçalhos com dia da semana
         const thead = document.getElementById('tableHeader');
         let headerHtml = `<tr><th>👤 PILOTO</th>`;
         for (let i = 0; i < DIAS; i++) {
@@ -861,7 +863,7 @@ async function carregarDoBackend() {
                         inp.value = '';
                     }
                     atualizarCorInput(inp);
-                    inp.disabled = true; // começa bloqueado
+                    inp.disabled = true;
 
                     inp.addEventListener('input', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
@@ -898,7 +900,7 @@ async function carregarDoBackend() {
         }
         recalcularTudo();
         criarBotoesDias();
-        setEditMode(false); // inicia bloqueado
+        setEditMode(false);
         syncSpan.innerHTML = '✅ Carregado';
         setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 2000);
     } catch(e) {
