@@ -517,6 +517,16 @@ function obterMesAno() {
     return data ? JSON.parse(data) : null;
 }
 
+// ===== PERSISTÊNCIA DAS SUGESTÕES (VERDE) =====
+const SUGESTOES_KEY = 'planilha_sugestoes';
+function salvarSugestoes(sugestoes) {
+    localStorage.setItem(SUGESTOES_KEY, JSON.stringify(sugestoes));
+}
+function carregarSugestoes() {
+    const data = localStorage.getItem(SUGESTOES_KEY);
+    return data ? JSON.parse(data) : {};
+}
+
 let DIAS = 31;
 let anoAtual = new Date().getFullYear();
 let isEditing = false;
@@ -570,27 +580,53 @@ function getNomeFromRow(row) {
     return nomeCell?.innerText.trim() || "";
 }
 
-// ===== CORREÇÃO: LÓGICA DE COR (SEM VERDE AUTOMÁTICO) =====
-function atualizarCorInput(inp) {
+// ===== CORREÇÃO: LÓGICA DE COR (COM SUGESTÕES PERSISTENTES) =====
+function atualizarCorInput(inp, sugestoes) {
     const valor = parseHora(inp.value);
-    // Remove todas as classes de estado
     inp.classList.remove('has-value', 'is-zero', 'sugestao');
-    // Remove estilos de erro
     inp.style.color = '';
     inp.style.borderColor = '';
 
     if (valor === null) {
-        // Neutro: não adiciona classe
+        // Verifica se há sugestão salva para esta célula
+        const key = obterChaveSugestao(inp);
+        if (sugestoes && sugestoes[key]) {
+            inp.classList.add('sugestao');
+        }
         return;
     } else if (valor === 0) {
         inp.classList.add('is-zero');
     } else if (valor > 0) {
         inp.classList.add('has-value');
     } else {
-        // valor negativo: trata como erro
         inp.style.color = 'red';
         inp.style.borderColor = 'red';
     }
+}
+
+function obterChaveSugestao(inp) {
+    const pilot = inp.dataset.pilot;
+    const dia = inp.dataset.dia;
+    const mes = document.getElementById('campoMes').value.trim() || "Julho";
+    return `${mes}_${anoAtual}_${pilot}_${dia}`;
+}
+
+function salvarSugestaoParaCelula(inp, ativo) {
+    const sugestoes = carregarSugestoes();
+    const key = obterChaveSugestao(inp);
+    if (ativo) {
+        sugestoes[key] = true;
+    } else {
+        delete sugestoes[key];
+    }
+    salvarSugestoes(sugestoes);
+}
+
+function aplicarSugestoesSalvas() {
+    const sugestoes = carregarSugestoes();
+    document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => {
+        atualizarCorInput(inp, sugestoes);
+    });
 }
 
 function atualizarTotalLinha(row) {
@@ -598,7 +634,7 @@ function atualizarTotalLinha(row) {
     row.querySelectorAll('.input-hora').forEach(inp => {
         const v = parseHora(inp.value);
         if (v !== null && v > 0) soma += v;
-        atualizarCorInput(inp);
+        // Não chama atualizarCorInput aqui para não sobrescrever a lógica de sugestões
     });
     const tc = row.querySelector('.total-cell');
     if (tc) tc.textContent = formatarHora(soma);
@@ -688,6 +724,8 @@ function recalcularTudo() {
     validarStreaks();
     atualizarTotaisBotoesDias();
     atualizarTodosContadores();
+    // Reaplica sugestões salvas após recálculo
+    aplicarSugestoesSalvas();
 }
 
 function totalHorasDia(diaIndex) {
@@ -717,7 +755,7 @@ function ativarEdicaoDia(diaIndex) {
         showToast("⚠️ Desbloqueie a planilha primeiro.");
         return;
     }
-    sairEdicaoDia();
+    sairEdicaoDia(); // Isso remove os destaques mas NÃO remove as classes sugestao
     diaEditandoIndex = diaIndex;
 
     document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = true);
@@ -738,15 +776,14 @@ function ativarEdicaoDia(diaIndex) {
     showToast(`✏️ Editando dia ${String(diaIndex + 1).padStart(2,'00')}`);
 }
 
-// ===== SAIR DA EDIÇÃO: REMOVE TODAS AS CORES VERDES =====
+// ===== SAIR DA EDIÇÃO: NÃO REMOVE AS CORES VERDES =====
 function sairEdicaoDia() {
     if (diaEditandoIndex !== null) {
         document.querySelectorAll('#tabelaHoras tbody .input-hora')
             .forEach(inp => inp.disabled = true);
         document.querySelectorAll('.col-ativa').forEach(el => el.classList.remove('col-ativa'));
         document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-editando'));
-        // Remove TODAS as classes 'sugestao' (verde) da tabela
-        document.querySelectorAll('#tabelaHoras .input-hora.sugestao').forEach(inp => inp.classList.remove('sugestao'));
+        // NÃO remove a classe 'sugestao' – ela permanece
         diaEditandoIndex = null;
         document.getElementById('btnSairDia').style.display = 'none';
         document.getElementById('btnPreencherVazios').style.display = 'none';
@@ -754,7 +791,7 @@ function sairEdicaoDia() {
     }
 }
 
-// ===== PREENCHER VAZIOS: APLICA VERDE APENAS NA COLUNA EM EDIÇÃO =====
+// ===== PREENCHER VAZIOS: APLICA VERDE E SALVA =====
 function preencherVazios() {
     if (diaEditandoIndex === null) {
         showToast('⚠️ Selecione um dia primeiro.');
@@ -768,9 +805,11 @@ function preencherVazios() {
         const valor = parseHora(inp.value);
         if (valor === null) {
             inp.classList.add('sugestao');
+            salvarSugestaoParaCelula(inp, true);
             count++;
         } else {
             inp.classList.remove('sugestao');
+            salvarSugestaoParaCelula(inp, false);
         }
     });
     showToast(`🎨 ${count} células vazias destacadas em verde.`);
@@ -943,6 +982,8 @@ async function carregarDoBackend() {
                     inp.inputMode = 'decimal';
                     inp.classList.add('input-hora');
                     inp.placeholder = '';
+                    inp.dataset.pilot = p.name;
+                    inp.dataset.dia = i + 1;
 
                     const valorSalvo = (LOGS[p.name] && LOGS[p.name][i+1] !== undefined) ? LOGS[p.name][i+1] : null;
                     
@@ -953,13 +994,16 @@ async function carregarDoBackend() {
                         inp.value = '';
                     }
                     
-                    atualizarCorInput(inp); // agora sem verde automático
+                    // Aplica cor com sugestões salvas
+                    const sugestoes = carregarSugestoes();
+                    atualizarCorInput(inp, sugestoes);
                     inp.disabled = true;
 
                     inp.addEventListener('input', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
                         // Remove sugestão se o usuário digitar algo
                         this.classList.remove('sugestao');
+                        salvarSugestaoParaCelula(this, false);
                         atualizarTotalLinha(row);
                         recalcularTudo();
                         clearTimeout(this._saveTimer);
@@ -969,16 +1013,20 @@ async function carregarDoBackend() {
                     inp.addEventListener('blur', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
                         let v = parseHora(this.value);
+                        // Se for negativo, transforma em 0
                         if (v !== null && v < 0) {
                             v = 0;
                             this.value = formatarHora(v);
                         }
+                        // Se for vazio, mantém vazio (não converte para 0)
                         if (v === null) {
                             this.value = '';
                         } else {
                             this.value = formatarHora(v);
                         }
-                        atualizarCorInput(this);
+                        // Atualiza a cor (se for vazio, pode manter sugestão se tiver)
+                        const sugestoes = carregarSugestoes();
+                        atualizarCorInput(this, sugestoes);
                         atualizarTotalLinha(row);
                         recalcularTudo();
                         salvarNoBackend();
@@ -1001,6 +1049,8 @@ async function carregarDoBackend() {
                 tbody.appendChild(row);
             }
         }
+        // Aplica sugestões salvas após montar
+        aplicarSugestoesSalvas();
         recalcularTudo();
         criarBotoesDias();
         setEditMode(false);
@@ -1102,7 +1152,7 @@ function mostrarAjuda() {
     const itens = [
         { cor: '#fff1b5', texto: 'Célula com fundo amarelo → possui horas lançadas (>0)' },
         { cor: '#e0e0e0', texto: 'Célula com fundo cinza → dia trabalhado sem horas (valor 0)' },
-        { cor: '#d4edda', texto: 'Célula com fundo verde → vazia/não preenchida (marcação temporária durante edição)' },
+        { cor: '#d4edda', texto: 'Célula com fundo verde → vazia/não preenchida (marcação persistente)' },
         { cor: '#ffb366', texto: 'Célula com fundo laranja → 7º dia após 6 trabalhados (folga sugerida)' },
         { cor: '#e7dbbc', texto: 'Total de horas por piloto (soma automática, ignora zeros)' },
         { cor: '#4c351e', texto: 'Número sobrescrito ao lado do nome → contagem de folgas (dias vazios)' },
@@ -1111,7 +1161,7 @@ function mostrarAjuda() {
     itens.forEach(item => {
         html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:${item.cor};border:1px solid #999;font-size:0.7rem;">&nbsp;</div><span>${item.texto}</span></div>`;
     });
-    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">🔐 Desbloqueie com a senha, depois clique em um dia para editar apenas aquela coluna.<br>✅ Salvamento automático ao sair do campo.<br>0️⃣ Digite "0" para marcar dia trabalhado sem horas (não conta como folga).<br>🎨 Use "PREENCHER VAZIOS" para destacar células vazias em verde (apenas durante a edição).</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
+    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">🔐 Desbloqueie com a senha, depois clique em um dia para editar apenas aquela coluna.<br>✅ Salvamento automático ao sair do campo.<br>0️⃣ Digite "0" para marcar dia trabalhado sem horas (não conta como folga).<br>🎨 Use "PREENCHER VAZIOS" para destacar células vazias em verde (persistente).</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
     const modal = document.createElement('div');
     modal.className = 'modal-ajuda';
     modal.innerHTML = html;
@@ -1209,7 +1259,8 @@ function iniciarSocket() {
             } else {
                 inp.value = formatarHora(v);
             }
-            atualizarCorInput(inp);
+            const sugestoes = carregarSugestoes();
+            atualizarCorInput(inp, sugestoes);
             atualizarTotalLinha(row);
         });
         recalcularTudo();
@@ -1218,4 +1269,4 @@ function iniciarSocket() {
 iniciarSocket();
 </script>
 </body>
-</html>
+    </html>
