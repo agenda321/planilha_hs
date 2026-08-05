@@ -24,7 +24,6 @@ CORS(app)
 print("✅ Flask e CORS configurados")
 sys.stdout.flush()
 
-# Tempo real: threading é o async_mode escolhido por não exigir eventlet/gevent
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 print("✅ SocketIO configurado (async_mode=threading)")
 sys.stdout.flush()
@@ -116,7 +115,7 @@ class FlightLog(db.Model):
     month = db.Column(db.Integer, nullable=False)
     year = db.Column(db.Integer, nullable=False)
     hours = db.Column(db.Float, nullable=False, default=0.0)
-    sugestoes = db.Column(db.JSON, nullable=False, default={})  # <-- NOVO campo para sugestões
+    sugestoes = db.Column(db.JSON, nullable=False, default={})
     pilot = db.relationship("Pilot", backref=db.backref("flight_logs", lazy=True))
 
 class StatusOverride(db.Model):
@@ -225,7 +224,6 @@ def get_data():
             for key, horas in logs_next_map.get(pilot_name, {}).items():
                 logs_adjacent[pilot_name][key] = horas
 
-        # Coleta todas as sugestões do mês
         sugestoes_consolidadas = {}
         for log in logs_current:
             if log.sugestoes:
@@ -236,7 +234,7 @@ def get_data():
             "logs": {},
             "logs_adjacent": logs_adjacent,
             "escala": {},
-            "sugestoes": sugestoes_consolidadas  # <-- Retorna as sugestões
+            "sugestoes": sugestoes_consolidadas
         }
 
         for log in logs_current:
@@ -249,6 +247,7 @@ def get_data():
             if escala_pilot:
                 result["escala"][p.name] = escala_pilot
 
+        print(f"📤 Retornando {len(sugestoes_consolidadas)} sugestões para {month}/{year}")
         return jsonify(result)
     except Exception as e:
         print(f"❌ Erro em /api/data: {e}")
@@ -266,9 +265,10 @@ def save_data():
             return jsonify({"success": False, "erro": "Mês e ano são obrigatórios"}), 400
         month = int(month); year = int(year)
         
-        # Recebe as sugestões do frontend
         sugestoes_recebidas = data.get("sugestoes", {})
         mes_nome = getNomeMes(month)
+        
+        print(f"📥 Salvando {len(sugestoes_recebidas)} sugestões para {month}/{year}")
         
         eventos_para_emitir = []
         for pilot_name, days in data.get("logs", {}).items():
@@ -281,7 +281,6 @@ def save_data():
                 log = FlightLog.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
                 if log:
                     log.hours = valor_horas
-                    # Atualiza sugestões se existirem para este piloto/dia
                     key = f"{mes_nome}_{year}_{pilot_name}_{day}"
                     if not log.sugestoes:
                         log.sugestoes = {}
@@ -292,7 +291,6 @@ def save_data():
                             del log.sugestoes[key]
                 else:
                     log = FlightLog(pilot_id=pilot.id, day=day, month=month, year=year, hours=valor_horas)
-                    # Salva sugestões iniciais
                     key = f"{mes_nome}_{year}_{pilot_name}_{day}"
                     if key in sugestoes_recebidas and sugestoes_recebidas[key]:
                         log.sugestoes = {key: True}
@@ -307,6 +305,7 @@ def save_data():
         return jsonify({"success": True})
     except Exception as e:
         print(f"❌ Erro em /api/data (POST): {e}")
+        db.session.rollback()
         return jsonify({"success": False, "erro": str(e)}), 500
 
 @app.route("/api/available_commanders/<int:day_index>", methods=["GET"])
