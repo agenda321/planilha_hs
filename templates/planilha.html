@@ -983,7 +983,11 @@ async function carregarDoBackend() {
 
                     const valorSalvo = (LOGS[p.name] && LOGS[p.name][i+1] !== undefined) ? LOGS[p.name][i+1] : null;
                     
-                    if (valorSalvo !== null) {
+                    // ===== CORREÇÃO: IGNORA ZEROS SALVOS =====
+                    if (valorSalvo !== null && valorSalvo === 0) {
+                        // Não exibe zeros vindos do backend
+                        inp.value = '';
+                    } else if (valorSalvo !== null) {
                         inp.value = formatarHora(valorSalvo);
                         if (valorSalvo > 0) total += valorSalvo;
                     } else {
@@ -996,7 +1000,6 @@ async function carregarDoBackend() {
 
                     inp.addEventListener('input', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
-                        // Remove sugestão se o usuário digitar algo
                         this.classList.remove('sugestao');
                         salvarSugestaoParaCelula(this, false);
                         atualizarTotalLinha(row);
@@ -1008,12 +1011,10 @@ async function carregarDoBackend() {
                     inp.addEventListener('blur', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
                         let v = parseHora(this.value);
-                        // Se for negativo, transforma em 0
                         if (v !== null && v < 0) {
                             v = 0;
                             this.value = formatarHora(v);
                         }
-                        // Se for vazio, mantém vazio (não converte para 0)
                         if (v === null) {
                             this.value = '';
                         } else {
@@ -1262,4 +1263,4 @@ function iniciarSocket() {
 iniciarSocket();
 </script>
 </body>
-    </html>
+</html>
