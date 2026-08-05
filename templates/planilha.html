@@ -247,7 +247,7 @@
         }
         .input-hora::placeholder { color: #bbb; font-size: 0.65rem; }
         
-        /* ESTADOS VISUAIS DAS CÉLULAS */
+        /* Estados visuais */
         .input-hora.has-value { 
             background: #fff1b5; 
             border-color: #e4b149; 
@@ -570,25 +570,26 @@ function getNomeFromRow(row) {
     return nomeCell?.innerText.trim() || "";
 }
 
-// ===== CORREÇÃO PRINCIPAL: LÓGICA DE COR E ZERO =====
+// ===== CORREÇÃO: LÓGICA DE COR (SEM VERDE AUTOMÁTICO) =====
 function atualizarCorInput(inp) {
-    const valorRaw = inp.value;
-    const valor = parseHora(valorRaw);
-
+    const valor = parseHora(inp.value);
+    // Remove todas as classes de estado
     inp.classList.remove('has-value', 'is-zero', 'sugestao');
+    // Remove estilos de erro
+    inp.style.color = '';
+    inp.style.borderColor = '';
 
-    if (valor === null && valorRaw === '') {
-        inp.classList.add('sugestao');
+    if (valor === null) {
+        // Neutro: não adiciona classe
+        return;
     } else if (valor === 0) {
         inp.classList.add('is-zero');
     } else if (valor > 0) {
         inp.classList.add('has-value');
-    } else if (valor < 0) {
+    } else {
+        // valor negativo: trata como erro
         inp.style.color = 'red';
         inp.style.borderColor = 'red';
-    } else {
-        inp.style.color = '';
-        inp.style.borderColor = '';
     }
 }
 
@@ -737,13 +738,15 @@ function ativarEdicaoDia(diaIndex) {
     showToast(`✏️ Editando dia ${String(diaIndex + 1).padStart(2,'00')}`);
 }
 
-// ===== CORREÇÃO CRÍTICA: sairEdicaoDia desabilita TODOS os inputs =====
+// ===== SAIR DA EDIÇÃO: REMOVE TODAS AS CORES VERDES =====
 function sairEdicaoDia() {
     if (diaEditandoIndex !== null) {
         document.querySelectorAll('#tabelaHoras tbody .input-hora')
             .forEach(inp => inp.disabled = true);
         document.querySelectorAll('.col-ativa').forEach(el => el.classList.remove('col-ativa'));
         document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-editando'));
+        // Remove TODAS as classes 'sugestao' (verde) da tabela
+        document.querySelectorAll('#tabelaHoras .input-hora.sugestao').forEach(inp => inp.classList.remove('sugestao'));
         diaEditandoIndex = null;
         document.getElementById('btnSairDia').style.display = 'none';
         document.getElementById('btnPreencherVazios').style.display = 'none';
@@ -751,7 +754,7 @@ function sairEdicaoDia() {
     }
 }
 
-// ===== PREENCHER VAZIOS COM COR (BOTÃO) =====
+// ===== PREENCHER VAZIOS: APLICA VERDE APENAS NA COLUNA EM EDIÇÃO =====
 function preencherVazios() {
     if (diaEditandoIndex === null) {
         showToast('⚠️ Selecione um dia primeiro.');
@@ -912,7 +915,6 @@ async function carregarDoBackend() {
             else grupos["CESSNA 206/210"].push(p);
         });
 
-        // Ordenar pilotos alfabeticamente em cada grupo
         for (let g in grupos) {
             grupos[g].sort((a, b) => a.name.localeCompare(b.name));
         }
@@ -951,11 +953,13 @@ async function carregarDoBackend() {
                         inp.value = '';
                     }
                     
-                    atualizarCorInput(inp);
+                    atualizarCorInput(inp); // agora sem verde automático
                     inp.disabled = true;
 
                     inp.addEventListener('input', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
+                        // Remove sugestão se o usuário digitar algo
+                        this.classList.remove('sugestao');
                         atualizarTotalLinha(row);
                         recalcularTudo();
                         clearTimeout(this._saveTimer);
@@ -1098,7 +1102,7 @@ function mostrarAjuda() {
     const itens = [
         { cor: '#fff1b5', texto: 'Célula com fundo amarelo → possui horas lançadas (>0)' },
         { cor: '#e0e0e0', texto: 'Célula com fundo cinza → dia trabalhado sem horas (valor 0)' },
-        { cor: '#d4edda', texto: 'Célula com fundo verde → vazia/não preenchida (conta como folga)' },
+        { cor: '#d4edda', texto: 'Célula com fundo verde → vazia/não preenchida (marcação temporária durante edição)' },
         { cor: '#ffb366', texto: 'Célula com fundo laranja → 7º dia após 6 trabalhados (folga sugerida)' },
         { cor: '#e7dbbc', texto: 'Total de horas por piloto (soma automática, ignora zeros)' },
         { cor: '#4c351e', texto: 'Número sobrescrito ao lado do nome → contagem de folgas (dias vazios)' },
@@ -1107,7 +1111,7 @@ function mostrarAjuda() {
     itens.forEach(item => {
         html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:${item.cor};border:1px solid #999;font-size:0.7rem;">&nbsp;</div><span>${item.texto}</span></div>`;
     });
-    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">🔐 Desbloqueie com a senha, depois clique em um dia para editar apenas aquela coluna.<br>✅ Salvamento automático ao sair do campo.<br>0️⃣ Digite "0" para marcar dia trabalhado sem horas (não conta como folga).</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
+    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">🔐 Desbloqueie com a senha, depois clique em um dia para editar apenas aquela coluna.<br>✅ Salvamento automático ao sair do campo.<br>0️⃣ Digite "0" para marcar dia trabalhado sem horas (não conta como folga).<br>🎨 Use "PREENCHER VAZIOS" para destacar células vazias em verde (apenas durante a edição).</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
     const modal = document.createElement('div');
     modal.className = 'modal-ajuda';
     modal.innerHTML = html;
