@@ -53,6 +53,9 @@
             margin: 0;
             color: #3b2a1f;
             text-shadow: 2px 2px 0 #cdb086;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         .nav-mes { display: flex; align-items: center; gap: 8px; }
         .mes-editavel {
@@ -243,9 +246,28 @@
             touch-action: manipulation;
         }
         .input-hora::placeholder { color: #bbb; font-size: 0.65rem; }
-        .input-hora.has-value { background: #fff1b5; border-color: #e4b149; box-shadow: 0 0 5px gold; }
-        .input-hora.sugestao { background: #d4edda !important; border-color: #6c9e6c !important; box-shadow: 0 0 6px #6c9e6c; }
+        
+        /* ESTADOS VISUAIS DAS CÉLULAS */
+        .input-hora.has-value { 
+            background: #fff1b5; 
+            border-color: #e4b149; 
+            box-shadow: 0 0 5px gold; 
+        }
+        /* Zero explícito: Dia trabalhado sem horas (Cinza) */
+        .input-hora.is-zero { 
+            background: #e0e0e0 !important; 
+            border-color: #999 !important; 
+            color: #555;
+            font-weight: bold;
+        }
+        /* Vazio: Sugestão de preenchimento (Verde) */
+        .input-hora.sugestao { 
+            background: #d4edda !important; 
+            border-color: #6c9e6c !important; 
+            box-shadow: 0 0 6px #6c9e6c; 
+        }
         .input-hora.streak-day { background: #ffb366; border-color: #e67300; box-shadow: 0 0 8px #e67300; }
+        
         .input-hora:disabled, .input-hora[readonly] {
             background: #f0ebe0;
             cursor: not-allowed;
@@ -424,7 +446,7 @@
         <!-- Cabeçalho -->
         <div class="cabecalho-skeuo">
             <div class="title-area">
-                <h1>✈️ REGISTRO DE HORAS</h1>
+                <h1><i class="fas fa-plane-up"></i> REGISTRO DE HORAS</h1>
                 <div class="nav-mes">
                     <button class="btn-skeuo" id="btnMesAnterior">◀</button>
                     <input type="text" id="campoMes" class="mes-editavel" value="Agosto" disabled>
@@ -487,10 +509,15 @@ function showToast(msg, duracao = 2500) {
     toast._timer = setTimeout(() => toast.classList.remove('show'), duracao);
 }
 
-// ===== PERSISTÊNCIA DO MÊS =====
-const MES_STORAGE_KEY = 'planilha_mes_selecionado';
-function salvarMesNoStorage(mes) { localStorage.setItem(MES_STORAGE_KEY, mes); }
-function obterMesDoStorage() { return localStorage.getItem(MES_STORAGE_KEY) || null; }
+// ===== PERSISTÊNCIA DO MÊS E ANO =====
+const MES_STORAGE_KEY = 'planilha_mes_ano';
+function salvarMesAno(mes, ano) {
+    localStorage.setItem(MES_STORAGE_KEY, JSON.stringify({ mes, ano }));
+}
+function obterMesAno() {
+    const data = localStorage.getItem(MES_STORAGE_KEY);
+    return data ? JSON.parse(data) : null;
+}
 
 let DIAS = 31;
 let anoAtual = new Date().getFullYear();
@@ -517,9 +544,9 @@ function atualizarDias() {
 }
 
 function parseHora(v) {
-    if (!v) return 0;
+    if (v === '' || v === null || v === undefined) return null;
     let n = parseFloat(String(v).trim().replace(',','.'));
-    return isNaN(n) ? 0 : n;
+    return isNaN(n) ? null : n;
 }
 function formatarHora(n) { return n.toFixed(1).replace('.',','); }
 
@@ -545,14 +572,28 @@ function getNomeFromRow(row) {
     return nomeCell?.innerText.trim() || "";
 }
 
+// ===== CORREÇÃO PRINCIPAL: LÓGICA DE COR E ZERO =====
 function atualizarCorInput(inp) {
-    const valor = parseHora(inp.value);
-    if (valor > 0) {
+    const valorRaw = inp.value;
+    const valor = parseHora(valorRaw);
+
+    inp.classList.remove('has-value', 'is-zero', 'sugestao');
+
+    if (valor === null && valorRaw === '') {
+        inp.classList.add('sugestao');
+    } else if (valor === 0) {
+        inp.classList.add('is-zero');
+    } else if (valor > 0) {
         inp.classList.add('has-value');
-        inp.classList.remove('sugestao'); // Remove cor de sugestão se tiver valor
+    } else if (valor < 0) {
+        // Valor negativo: trata como inválido, aplica estilo de erro
+        inp.style.color = 'red';
+        inp.style.borderColor = 'red';
+        // Não adiciona classe especial, mas pode ser tratado no blur
     } else {
-        inp.classList.remove('has-value');
-        // Não remove sugestao aqui para manter a cor
+        // Remove estilo de erro caso exista
+        inp.style.color = '';
+        inp.style.borderColor = '';
     }
 }
 
@@ -560,7 +601,7 @@ function atualizarTotalLinha(row) {
     let soma = 0;
     row.querySelectorAll('.input-hora').forEach(inp => {
         const v = parseHora(inp.value);
-        if (v > 0) soma += v;
+        if (v !== null && v > 0) soma += v;
         atualizarCorInput(inp);
     });
     const tc = row.querySelector('.total-cell');
@@ -572,7 +613,11 @@ function atualizarTotalLinha(row) {
 function validarStreaks() {
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
         const inputs = row.querySelectorAll('.input-hora');
-        const vals = Array.from(inputs).map(inp => parseHora(inp.value) > 0 ? 1 : 0);
+        const vals = Array.from(inputs).map(inp => {
+            const v = parseHora(inp.value);
+            return (v !== null);
+        });
+        
         const seq = new Array(DIAS).fill(false);
         let streak = 0, i = 0;
         while (i < DIAS) {
@@ -593,7 +638,7 @@ function validarStreaks() {
     });
 }
 
-// ===== CONTAGEM DE FOLGAS (baseada em células vazias) =====
+// ===== CONTAGEM DE FOLGAS (baseada em células VAZIAS) =====
 function getLimiteDiasContagem() {
     const hoje = new Date();
     const mesReal = hoje.getMonth() + 1;
@@ -610,8 +655,9 @@ function contarFolgas(nome, row) {
     let count = 0;
     for (let i = 0; i < limite; i++) {
         const inp = row.cells[i+1]?.querySelector('.input-hora');
-        const horas = inp ? parseHora(inp.value) : 0;
-        if (horas === 0) count++;
+        if (inp && parseHora(inp.value) === null) {
+            count++;
+        }
     }
     return count;
 }
@@ -653,7 +699,10 @@ function totalHorasDia(diaIndex) {
     let soma = 0;
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
         const inp = row.cells[diaIndex+1]?.querySelector('.input-hora');
-        if (inp) { const v=parseHora(inp.value); if(v>0) soma+=v; }
+        if (inp) { 
+            const v = parseHora(inp.value); 
+            if(v !== null && v > 0) soma+=v; 
+        }
     });
     return soma;
 }
@@ -694,12 +743,14 @@ function ativarEdicaoDia(diaIndex) {
     showToast(`✏️ Editando dia ${String(diaIndex + 1).padStart(2,'00')}`);
 }
 
+// ===== CORREÇÃO CRÍTICA: sairEdicaoDia desabilita TODOS os inputs =====
 function sairEdicaoDia() {
     if (diaEditandoIndex !== null) {
-        document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = !isEditing);
+        // Desabilita todos os campos (independente de isEditing)
+        document.querySelectorAll('#tabelaHoras tbody .input-hora')
+            .forEach(inp => inp.disabled = true);
         document.querySelectorAll('.col-ativa').forEach(el => el.classList.remove('col-ativa'));
         document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-editando'));
-        // NÃO remove a classe 'sugestao' para manter as cores
         diaEditandoIndex = null;
         document.getElementById('btnSairDia').style.display = 'none';
         document.getElementById('btnPreencherVazios').style.display = 'none';
@@ -707,7 +758,7 @@ function sairEdicaoDia() {
     }
 }
 
-// ===== PREENCHER VAZIOS COM COR =====
+// ===== PREENCHER VAZIOS COM COR (BOTÃO) =====
 function preencherVazios() {
     if (diaEditandoIndex === null) {
         showToast('⚠️ Selecione um dia primeiro.');
@@ -719,7 +770,7 @@ function preencherVazios() {
         const inp = row.cells[dia + 1]?.querySelector('.input-hora');
         if (!inp) return;
         const valor = parseHora(inp.value);
-        if (valor === 0) {
+        if (valor === null) {
             inp.classList.add('sugestao');
             count++;
         } else {
@@ -807,7 +858,7 @@ async function salvarNoBackend() {
             logs[nome] = {};
             row.querySelectorAll('.input-hora').forEach((inp, i) => {
                 const v = parseHora(inp.value);
-                if (v > 0) logs[nome][i+1] = v;
+                if (v !== null) logs[nome][i+1] = v;
             });
         });
 
@@ -868,10 +919,19 @@ async function carregarDoBackend() {
             else grupos["CESSNA 206/210"].push(p);
         });
 
+        // Ordenar pilotos alfabeticamente em cada grupo
+        for (let g in grupos) {
+            grupos[g].sort((a, b) => a.name.localeCompare(b.name));
+        }
+
         for (let grupo of ["CESSNA 206/210","CARAVAN","COPILOTO"]) {
             const titleRow = document.createElement('tr');
             titleRow.classList.add('group-title-row');
-            titleRow.innerHTML = `<td colspan="${DIAS+2}"><i class="fas fa-${grupo==="COPILOTO"?"headset":"plane"}"></i> ${grupo}</td>`;
+            let iconClass = "fa-plane-up";
+            if (grupo === "CARAVAN") iconClass = "fa-plane-departure";
+            if (grupo === "COPILOTO") iconClass = "fa-user-pilot";
+            
+            titleRow.innerHTML = `<td colspan="${DIAS+2}"><i class="fas ${iconClass}"></i> ${grupo}</td>`;
             tbody.appendChild(titleRow);
             for (let p of grupos[grupo]) {
                 const row = document.createElement('tr');
@@ -889,37 +949,45 @@ async function carregarDoBackend() {
                     inp.classList.add('input-hora');
                     inp.placeholder = '';
 
-                    const valor = (LOGS[p.name] && LOGS[p.name][i+1]) ? LOGS[p.name][i+1] : 0;
-                    if (valor > 0) {
-                        inp.value = formatarHora(valor);
-                        total += valor;
+                    const valorSalvo = (LOGS[p.name] && LOGS[p.name][i+1] !== undefined) ? LOGS[p.name][i+1] : null;
+                    
+                    if (valorSalvo !== null) {
+                        inp.value = formatarHora(valorSalvo);
+                        if (valorSalvo > 0) total += valorSalvo;
                     } else {
                         inp.value = '';
                     }
+                    
                     atualizarCorInput(inp);
                     inp.disabled = true;
 
                     inp.addEventListener('input', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
-                        this.classList.remove('sugestao'); // Remove cor de sugestão ao digitar
                         atualizarTotalLinha(row);
                         recalcularTudo();
                         clearTimeout(this._saveTimer);
                         this._saveTimer = setTimeout(salvarNoBackend, 1000);
                     });
+                    
                     inp.addEventListener('blur', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
-                        const v = parseHora(this.value);
-                        if (v > 0) {
+                        let v = parseHora(this.value);
+                        // Trata valores negativos: converte para 0
+                        if (v !== null && v < 0) {
+                            v = 0;
                             this.value = formatarHora(v);
-                            this.classList.remove('sugestao');
-                        } else {
-                            this.value = '';
                         }
+                        if (v === null) {
+                            this.value = '';
+                        } else {
+                            this.value = formatarHora(v);
+                        }
+                        atualizarCorInput(this);
                         atualizarTotalLinha(row);
                         recalcularTudo();
                         salvarNoBackend();
                     });
+                    
                     inp.addEventListener('keydown', function(e) {
                         if (e.key === 'Enter' && isEditing && diaEditandoIndex === i) {
                             e.preventDefault();
@@ -942,6 +1010,10 @@ async function carregarDoBackend() {
         setEditMode(false);
         syncSpan.innerHTML = '✅ Carregado';
         setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 2000);
+        // Reinscrever no socket (se existir) após carregar novo mês
+        if (socket && socket.connected) {
+            socket.emit('join_month', { month: mesNum, year: anoAtual });
+        }
     } catch(e) {
         console.error(e);
         document.getElementById('syncStatus').innerHTML = '❌ Erro';
@@ -979,7 +1051,10 @@ function mostrarRanking() {
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
         const nome = getNomeFromRow(row);
         let total = 0;
-        row.querySelectorAll('.input-hora').forEach(inp => total += parseHora(inp.value));
+        row.querySelectorAll('.input-hora').forEach(inp => {
+            const v = parseHora(inp.value);
+            if (v !== null && v > 0) total += v;
+        });
         const grupo = getGrupo(nome);
         pilotos.push({ nome, total, grupo });
     });
@@ -994,16 +1069,18 @@ function mostrarRanking() {
     for (let g in dadosPorGrupo) dadosPorGrupo[g].sort((a,b) => b.total - a.total);
 
     let html = `<div class="card-detalhe"><h2 style="text-align:center;">📊 Ranking de Horas — ${mesAtual}</h2>`;
+    
     const titulos = {
-        "CESSNA 206/210": "🔹 CMTES CESSNA 206/210",
-        "CARAVAN": "🛩️ CMTES CARAVAN 208",
-        "COPILOTO": "📋 COPILOTOS CARAVAN"
+        "CESSNA 206/210": '<i class="fas fa-plane-up" style="color:#3b2a1f;margin-right:8px;"></i> CMTES CESSNA 206/210',
+        "CARAVAN": '<i class="fas fa-plane-departure" style="color:#3b2a1f;margin-right:8px;"></i> CMTES CARAVAN 208',
+        "COPILOTO": '<i class="fas fa-user-pilot" style="color:#3b2a1f;margin-right:8px;"></i> COPILOTOS CARAVAN'
     };
+    
     for (let grupo of grupos) {
         const lista = dadosPorGrupo[grupo] || [];
         if (lista.length === 0) continue;
         const maxTotal = Math.max(...lista.map(p => p.total), 0.1);
-        html += `<h3 style="margin-top:16px;color:#3b2a1f;border-bottom:2px solid #ccaa7a;">${titulos[grupo]}</h3><ul style="margin:4px 0 12px 0;padding-left:0;list-style:none;">`;
+        html += `<h3 style="margin-top:16px;color:#3b2a1f;border-bottom:2px solid #ccaa7a;padding-bottom:4px;">${titulos[grupo]}</h3><ul style="margin:4px 0 12px 0;padding-left:0;list-style:none;">`;
         lista.forEach(p => {
             const perc = maxTotal > 0 ? (p.total / maxTotal) * 100 : 0;
             html += `<li style="padding:6px 8px;border-bottom:1px solid #e8d5b0;">
@@ -1028,17 +1105,18 @@ function mostrarRanking() {
 // ===== AJUDA =====
 function mostrarAjuda() {
     const itens = [
-        { cor: '#fff1b5', texto: 'Célula com fundo amarelo → possui horas lançadas' },
-        { cor: '#d4edda', texto: 'Célula com fundo verde → sugerida pelo botão "Preencher vazios"' },
+        { cor: '#fff1b5', texto: 'Célula com fundo amarelo → possui horas lançadas (>0)' },
+        { cor: '#e0e0e0', texto: 'Célula com fundo cinza → dia trabalhado sem horas (valor 0)' },
+        { cor: '#d4edda', texto: 'Célula com fundo verde → vazia/não preenchida (conta como folga)' },
         { cor: '#ffb366', texto: 'Célula com fundo laranja → 7º dia após 6 trabalhados (folga sugerida)' },
-        { cor: '#e7dbbc', texto: 'Total de horas por piloto (soma automática)' },
-        { cor: '#4c351e', texto: 'Número sobrescrito ao lado do nome → contagem de folgas (dias sem horas)' },
+        { cor: '#e7dbbc', texto: 'Total de horas por piloto (soma automática, ignora zeros)' },
+        { cor: '#4c351e', texto: 'Número sobrescrito ao lado do nome → contagem de folgas (dias vazios)' },
     ];
     let html = `<div class="card-ajuda"><h3 style="text-align:center;">📖 Legenda</h3>`;
     itens.forEach(item => {
         html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:${item.cor};border:1px solid #999;font-size:0.7rem;">&nbsp;</div><span>${item.texto}</span></div>`;
     });
-    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">🔐 Desbloqueie com a senha, depois clique em um dia para editar apenas aquela coluna.<br>✅ Salvamento automático ao sair do campo.<br>🎨 Botão "Preencher vazios" destaca células vazias em verde.</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
+    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">🔐 Desbloqueie com a senha, depois clique em um dia para editar apenas aquela coluna.<br>✅ Salvamento automático ao sair do campo.<br>0️⃣ Digite "0" para marcar dia trabalhado sem horas (não conta como folga).</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
     const modal = document.createElement('div');
     modal.className = 'modal-ajuda';
     modal.innerHTML = html;
@@ -1054,8 +1132,9 @@ document.getElementById('btnMesAnterior').addEventListener('click', function() {
     const mesNum = getMesNumero(mesAtual);
     let novoMesNum = mesNum - 1;
     if (novoMesNum < 1) { novoMesNum = 12; anoAtual -= 1; }
-    document.getElementById('campoMes').value = getNomeMes(novoMesNum);
-    salvarMesNoStorage(getNomeMes(novoMesNum));
+    const nomeMes = getNomeMes(novoMesNum);
+    document.getElementById('campoMes').value = nomeMes;
+    salvarMesAno(nomeMes, anoAtual);
     carregarDoBackend();
 });
 document.getElementById('btnMesProximo').addEventListener('click', function() {
@@ -1065,14 +1144,17 @@ document.getElementById('btnMesProximo').addEventListener('click', function() {
     const mesNum = getMesNumero(mesAtual);
     let novoMesNum = mesNum + 1;
     if (novoMesNum > 12) { novoMesNum = 1; anoAtual += 1; }
-    document.getElementById('campoMes').value = getNomeMes(novoMesNum);
-    salvarMesNoStorage(getNomeMes(novoMesNum));
+    const nomeMes = getNomeMes(novoMesNum);
+    document.getElementById('campoMes').value = nomeMes;
+    salvarMesAno(nomeMes, anoAtual);
     carregarDoBackend();
 });
 document.getElementById('campoMes').addEventListener('change', function() {
     if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
     sairEdicaoDia();
-    salvarMesNoStorage(this.value);
+    const nomeMes = this.value.trim();
+    // Não alteramos o ano; apenas o mês
+    salvarMesAno(nomeMes, anoAtual);
     carregarDoBackend();
 });
 
@@ -1084,11 +1166,16 @@ document.getElementById('btnPreencherVazios').onclick = preencherVazios;
 document.getElementById('btnRanking').onclick = mostrarRanking;
 document.getElementById('btnAjuda').onclick = mostrarAjuda;
 
-const mesSalvo = obterMesDoStorage();
+const dadosStorage = obterMesAno();
 const dataAtual = new Date();
-const mesAtualNome = getNomeMes(dataAtual.getMonth() + 1);
-document.getElementById('campoMes').value = mesSalvo || mesAtualNome;
-anoAtual = dataAtual.getFullYear();
+if (dadosStorage) {
+    document.getElementById('campoMes').value = dadosStorage.mes;
+    anoAtual = dadosStorage.ano;
+} else {
+    const mesAtualNome = getNomeMes(dataAtual.getMonth() + 1);
+    document.getElementById('campoMes').value = mesAtualNome;
+    anoAtual = dataAtual.getFullYear();
+}
 carregarDoBackend();
 
 // ===== SOCKET.IO (opcional) =====
@@ -1122,8 +1209,12 @@ function iniciarSocket() {
             if (getNomeFromRow(row) !== pilot) return;
             const inp = row.cells[day]?.querySelector('.input-hora');
             if (!inp) return;
-            const v = Number(value) || 0;
-            inp.value = v > 0 ? formatarHora(v) : '';
+            const v = Number(value);
+            if (isNaN(v)) {
+                inp.value = '';
+            } else {
+                inp.value = formatarHora(v);
+            }
             atualizarCorInput(inp);
             atualizarTotalLinha(row);
         });
@@ -1133,4 +1224,4 @@ function iniciarSocket() {
 iniciarSocket();
 </script>
 </body>
-            </html>
+</html>
