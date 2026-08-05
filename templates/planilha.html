@@ -561,7 +561,7 @@ function getGrupo(nome) {
 
 // ===== DADOS =====
 let LOGS = {};
-let SUGESTOES_BACKEND = {};
+let SUGESTOES_GLOBAIS = {};
 
 function getNomeFromRow(row) {
     if (row.dataset && row.dataset.pilot) return row.dataset.pilot;
@@ -571,29 +571,12 @@ function getNomeFromRow(row) {
     return nomeCell?.innerText.trim() || "";
 }
 
-// ===== LÓGICA DE COR (COM SUGESTÕES DO BACKEND) =====
+// ===== LÓGICA DE COR =====
 function obterChaveSugestao(inp) {
     const pilot = inp.dataset.pilot;
     const dia = inp.dataset.dia;
     const mes = document.getElementById('campoMes').value.trim() || "Julho";
     return `${mes}_${anoAtual}_${pilot}_${dia}`;
-}
-
-function salvarSugestaoParaCelula(inp, ativo) {
-    const key = obterChaveSugestao(inp);
-    if (ativo) {
-        SUGESTOES_BACKEND[key] = true;
-    } else {
-        delete SUGESTOES_BACKEND[key];
-    }
-    // Também salva no localStorage como fallback
-    const localSugestoes = JSON.parse(localStorage.getItem('planilha_sugestoes') || '{}');
-    if (ativo) {
-        localSugestoes[key] = true;
-    } else {
-        delete localSugestoes[key];
-    }
-    localStorage.setItem('planilha_sugestoes', JSON.stringify(localSugestoes));
 }
 
 function atualizarCorInput(inp, sugestoes) {
@@ -619,8 +602,8 @@ function atualizarCorInput(inp, sugestoes) {
 }
 
 function aplicarSugestoesSalvas() {
-    // Primeiro tenta carregar do backend, depois fallback para localStorage
-    const sugestoes = Object.keys(SUGESTOES_BACKEND).length > 0 ? SUGESTOES_BACKEND : JSON.parse(localStorage.getItem('planilha_sugestoes') || '{}');
+    // Usa as sugestões globais (vindas do backend) como fonte primária
+    const sugestoes = SUGESTOES_GLOBAIS;
     document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => {
         atualizarCorInput(inp, sugestoes);
     });
@@ -799,14 +782,17 @@ function preencherVazios() {
         const valor = parseHora(inp.value);
         if (valor === null) {
             inp.classList.add('sugestao');
-            salvarSugestaoParaCelula(inp, true);
+            // Atualiza o objeto global de sugestões
+            const key = obterChaveSugestao(inp);
+            SUGESTOES_GLOBAIS[key] = true;
             count++;
         } else {
             inp.classList.remove('sugestao');
-            salvarSugestaoParaCelula(inp, false);
+            const key = obterChaveSugestao(inp);
+            delete SUGESTOES_GLOBAIS[key];
         }
     });
-    // Salva no backend após marcar as sugestões
+    // Salva no backend imediatamente
     salvarNoBackend();
     showToast(`🎨 ${count} células vazias destacadas em verde.`);
 }
@@ -883,7 +869,6 @@ async function salvarNoBackend() {
         const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
         const month = getMesNumero(mesNome);
         const logs = {};
-        const sugestoes = {};
 
         document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
             const nome = getNomeFromRow(row);
@@ -894,19 +879,15 @@ async function salvarNoBackend() {
             });
         });
 
-        // Coleta as sugestões atuais (células verdes) de TODA a tabela
-        document.querySelectorAll('#tabelaHoras tbody .input-hora.sugestao').forEach(inp => {
-            const key = obterChaveSugestao(inp);
-            sugestoes[key] = true;
-        });
-
         const payload = {
             password,
             logs,
             month,
             year: anoAtual,
-            sugestoes: sugestoes
+            sugestoes: SUGESTOES_GLOBAIS  // Envia as sugestões atuais
         };
+
+        console.log('💾 Salvando com sugestões:', SUGESTOES_GLOBAIS);
 
         const resp = await fetch('/api/data', {
             method: 'POST',
@@ -919,9 +900,8 @@ async function salvarNoBackend() {
             throw new Error(respData.erro || `HTTP ${resp.status}`);
         }
 
-        // Atualiza o cache local com as sugestões enviadas
-        SUGESTOES_BACKEND = sugestoes;
-        localStorage.setItem('planilha_sugestoes', JSON.stringify(sugestoes));
+        // Salva no localStorage como backup
+        localStorage.setItem('planilha_sugestoes', JSON.stringify(SUGESTOES_GLOBAIS));
 
         syncSpan.innerHTML = '✅ Salvo';
         setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
@@ -949,14 +929,16 @@ async function carregarDoBackend() {
 
         LOGS = data.logs || {};
         
-        // Carrega as sugestões do backend (se existirem)
+        // Carrega as sugestões do backend
         if (data.sugestoes) {
-            SUGESTOES_BACKEND = data.sugestoes;
-            localStorage.setItem('planilha_sugestoes', JSON.stringify(data.sugestoes));
+            SUGESTOES_GLOBAIS = data.sugestoes;
+            console.log('📥 Sugestões carregadas do backend:', SUGESTOES_GLOBAIS);
+            localStorage.setItem('planilha_sugestoes', JSON.stringify(SUGESTOES_GLOBAIS));
         } else {
             // Fallback para localStorage se o backend não tiver sugestões
             const localSugestoes = JSON.parse(localStorage.getItem('planilha_sugestoes') || '{}');
-            SUGESTOES_BACKEND = localSugestoes;
+            SUGESTOES_GLOBAIS = localSugestoes;
+            console.log('📥 Usando sugestões do localStorage:', SUGESTOES_GLOBAIS);
         }
 
         atualizarDias();
@@ -1024,14 +1006,14 @@ async function carregarDoBackend() {
                         inp.value = '';
                     }
                     
-                    const sugestoes = SUGESTOES_BACKEND;
-                    atualizarCorInput(inp, sugestoes);
+                    atualizarCorInput(inp, SUGESTOES_GLOBAIS);
                     inp.disabled = true;
 
                     inp.addEventListener('input', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
                         this.classList.remove('sugestao');
-                        salvarSugestaoParaCelula(this, false);
+                        const key = obterChaveSugestao(this);
+                        delete SUGESTOES_GLOBAIS[key];
                         atualizarTotalLinha(row);
                         recalcularTudo();
                         clearTimeout(this._saveTimer);
@@ -1050,8 +1032,7 @@ async function carregarDoBackend() {
                         } else {
                             this.value = formatarHora(v);
                         }
-                        const sugestoes = SUGESTOES_BACKEND;
-                        atualizarCorInput(this, sugestoes);
+                        atualizarCorInput(this, SUGESTOES_GLOBAIS);
                         atualizarTotalLinha(row);
                         recalcularTudo();
                         salvarNoBackend();
@@ -1283,8 +1264,7 @@ function iniciarSocket() {
             } else {
                 inp.value = formatarHora(v);
             }
-            const sugestoes = SUGESTOES_BACKEND;
-            atualizarCorInput(inp, sugestoes);
+            atualizarCorInput(inp, SUGESTOES_GLOBAIS);
             atualizarTotalLinha(row);
         });
         recalcularTudo();
