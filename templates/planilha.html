@@ -517,16 +517,6 @@ function obterMesAno() {
     return data ? JSON.parse(data) : null;
 }
 
-// ===== PERSISTÊNCIA DAS SUGESTÕES (VERDE) =====
-const SUGESTOES_KEY = 'planilha_sugestoes';
-function salvarSugestoes(sugestoes) {
-    localStorage.setItem(SUGESTOES_KEY, JSON.stringify(sugestoes));
-}
-function carregarSugestoes() {
-    const data = localStorage.getItem(SUGESTOES_KEY);
-    return data ? JSON.parse(data) : {};
-}
-
 let DIAS = 31;
 let anoAtual = new Date().getFullYear();
 let isEditing = false;
@@ -571,6 +561,7 @@ function getGrupo(nome) {
 
 // ===== DADOS =====
 let LOGS = {};
+let SUGESTOES_BACKEND = {};
 
 function getNomeFromRow(row) {
     if (row.dataset && row.dataset.pilot) return row.dataset.pilot;
@@ -580,7 +571,7 @@ function getNomeFromRow(row) {
     return nomeCell?.innerText.trim() || "";
 }
 
-// ===== CORREÇÃO: LÓGICA DE COR (COM SUGESTÕES PERSISTENTES) =====
+// ===== LÓGICA DE COR (COM SUGESTÕES DO BACKEND) =====
 function obterChaveSugestao(inp) {
     const pilot = inp.dataset.pilot;
     const dia = inp.dataset.dia;
@@ -589,14 +580,20 @@ function obterChaveSugestao(inp) {
 }
 
 function salvarSugestaoParaCelula(inp, ativo) {
-    const sugestoes = carregarSugestoes();
     const key = obterChaveSugestao(inp);
     if (ativo) {
-        sugestoes[key] = true;
+        SUGESTOES_BACKEND[key] = true;
     } else {
-        delete sugestoes[key];
+        delete SUGESTOES_BACKEND[key];
     }
-    salvarSugestoes(sugestoes);
+    // Também salva no localStorage como fallback
+    const localSugestoes = JSON.parse(localStorage.getItem('planilha_sugestoes') || '{}');
+    if (ativo) {
+        localSugestoes[key] = true;
+    } else {
+        delete localSugestoes[key];
+    }
+    localStorage.setItem('planilha_sugestoes', JSON.stringify(localSugestoes));
 }
 
 function atualizarCorInput(inp, sugestoes) {
@@ -622,7 +619,8 @@ function atualizarCorInput(inp, sugestoes) {
 }
 
 function aplicarSugestoesSalvas() {
-    const sugestoes = carregarSugestoes();
+    // Primeiro tenta carregar do backend, depois fallback para localStorage
+    const sugestoes = Object.keys(SUGESTOES_BACKEND).length > 0 ? SUGESTOES_BACKEND : JSON.parse(localStorage.getItem('planilha_sugestoes') || '{}');
     document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => {
         atualizarCorInput(inp, sugestoes);
     });
@@ -808,6 +806,8 @@ function preencherVazios() {
             salvarSugestaoParaCelula(inp, false);
         }
     });
+    // Salva no backend após marcar as sugestões
+    salvarNoBackend();
     showToast(`🎨 ${count} células vazias destacadas em verde.`);
 }
 
@@ -872,7 +872,7 @@ function bloquear() {
     password = "";
 }
 
-// ===== SALVAMENTO (COM TRAVA) =====
+// ===== SALVAMENTO (COM TRAVA E SUGESTÕES) =====
 async function salvarNoBackend() {
     if (!isEditing || isSaving) return;
     isSaving = true;
@@ -883,6 +883,7 @@ async function salvarNoBackend() {
         const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
         const month = getMesNumero(mesNome);
         const logs = {};
+        const sugestoes = {};
 
         document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
             const nome = getNomeFromRow(row);
@@ -893,16 +894,34 @@ async function salvarNoBackend() {
             });
         });
 
+        // Coleta as sugestões atuais (células verdes) de TODA a tabela
+        document.querySelectorAll('#tabelaHoras tbody .input-hora.sugestao').forEach(inp => {
+            const key = obterChaveSugestao(inp);
+            sugestoes[key] = true;
+        });
+
+        const payload = {
+            password,
+            logs,
+            month,
+            year: anoAtual,
+            sugestoes: sugestoes
+        };
+
         const resp = await fetch('/api/data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password, logs, month, year: anoAtual })
+            body: JSON.stringify(payload)
         });
 
         const respData = await resp.json();
         if (!resp.ok || !respData.success) {
             throw new Error(respData.erro || `HTTP ${resp.status}`);
         }
+
+        // Atualiza o cache local com as sugestões enviadas
+        SUGESTOES_BACKEND = sugestoes;
+        localStorage.setItem('planilha_sugestoes', JSON.stringify(sugestoes));
 
         syncSpan.innerHTML = '✅ Salvo';
         setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
@@ -915,7 +934,7 @@ async function salvarNoBackend() {
     }
 }
 
-// ===== CARREGAR DO BACKEND =====
+// ===== CARREGAR DO BACKEND (COM SUGESTÕES) =====
 async function carregarDoBackend() {
     const syncSpan = document.getElementById('syncStatus');
     syncSpan.innerHTML = '⏳ Carregando...';
@@ -927,7 +946,19 @@ async function carregarDoBackend() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (!data.pilots || !data.logs) throw new Error('Resposta incompleta');
+
         LOGS = data.logs || {};
+        
+        // Carrega as sugestões do backend (se existirem)
+        if (data.sugestoes) {
+            SUGESTOES_BACKEND = data.sugestoes;
+            localStorage.setItem('planilha_sugestoes', JSON.stringify(data.sugestoes));
+        } else {
+            // Fallback para localStorage se o backend não tiver sugestões
+            const localSugestoes = JSON.parse(localStorage.getItem('planilha_sugestoes') || '{}');
+            SUGESTOES_BACKEND = localSugestoes;
+        }
+
         atualizarDias();
 
         const thead = document.getElementById('tableHeader');
@@ -985,7 +1016,6 @@ async function carregarDoBackend() {
                     
                     // ===== CORREÇÃO: IGNORA ZEROS SALVOS =====
                     if (valorSalvo !== null && valorSalvo === 0) {
-                        // Não exibe zeros vindos do backend
                         inp.value = '';
                     } else if (valorSalvo !== null) {
                         inp.value = formatarHora(valorSalvo);
@@ -994,7 +1024,7 @@ async function carregarDoBackend() {
                         inp.value = '';
                     }
                     
-                    const sugestoes = carregarSugestoes();
+                    const sugestoes = SUGESTOES_BACKEND;
                     atualizarCorInput(inp, sugestoes);
                     inp.disabled = true;
 
@@ -1020,7 +1050,7 @@ async function carregarDoBackend() {
                         } else {
                             this.value = formatarHora(v);
                         }
-                        const sugestoes = carregarSugestoes();
+                        const sugestoes = SUGESTOES_BACKEND;
                         atualizarCorInput(this, sugestoes);
                         atualizarTotalLinha(row);
                         recalcularTudo();
@@ -1155,7 +1185,7 @@ function mostrarAjuda() {
     itens.forEach(item => {
         html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:${item.cor};border:1px solid #999;font-size:0.7rem;">&nbsp;</div><span>${item.texto}</span></div>`;
     });
-    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">🔐 Desbloqueie com a senha, depois clique em um dia para editar apenas aquela coluna.<br>✅ Salvamento automático ao sair do campo.<br>0️⃣ Digite "0" para marcar dia trabalhado sem horas (não conta como folga).<br>🎨 Use "PREENCHER VAZIOS" para destacar células vazias em verde (persistente).</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
+    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">🔐 Desbloqueie com a senha, depois clique em um dia para editar apenas aquela coluna.<br>✅ Salvamento automático ao sair do campo.<br>0️⃣ Digite "0" para marcar dia trabalhado sem horas (não conta como folga).<br>🎨 Use "PREENCHER VAZIOS" para destacar células vazias em verde (persistente e sincronizado).</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
     const modal = document.createElement('div');
     modal.className = 'modal-ajuda';
     modal.innerHTML = html;
@@ -1253,7 +1283,7 @@ function iniciarSocket() {
             } else {
                 inp.value = formatarHora(v);
             }
-            const sugestoes = carregarSugestoes();
+            const sugestoes = SUGESTOES_BACKEND;
             atualizarCorInput(inp, sugestoes);
             atualizarTotalLinha(row);
         });
