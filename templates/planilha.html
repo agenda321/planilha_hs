@@ -581,29 +581,6 @@ function getNomeFromRow(row) {
 }
 
 // ===== CORREÇÃO: LÓGICA DE COR (COM SUGESTÕES PERSISTENTES) =====
-function atualizarCorInput(inp, sugestoes) {
-    const valor = parseHora(inp.value);
-    inp.classList.remove('has-value', 'is-zero', 'sugestao');
-    inp.style.color = '';
-    inp.style.borderColor = '';
-
-    if (valor === null) {
-        // Verifica se há sugestão salva para esta célula
-        const key = obterChaveSugestao(inp);
-        if (sugestoes && sugestoes[key]) {
-            inp.classList.add('sugestao');
-        }
-        return;
-    } else if (valor === 0) {
-        inp.classList.add('is-zero');
-    } else if (valor > 0) {
-        inp.classList.add('has-value');
-    } else {
-        inp.style.color = 'red';
-        inp.style.borderColor = 'red';
-    }
-}
-
 function obterChaveSugestao(inp) {
     const pilot = inp.dataset.pilot;
     const dia = inp.dataset.dia;
@@ -622,6 +599,28 @@ function salvarSugestaoParaCelula(inp, ativo) {
     salvarSugestoes(sugestoes);
 }
 
+function atualizarCorInput(inp, sugestoes) {
+    const valor = parseHora(inp.value);
+    inp.classList.remove('has-value', 'is-zero', 'sugestao');
+    inp.style.color = '';
+    inp.style.borderColor = '';
+
+    if (valor === null) {
+        const key = obterChaveSugestao(inp);
+        if (sugestoes && sugestoes[key]) {
+            inp.classList.add('sugestao');
+        }
+        return;
+    } else if (valor === 0) {
+        inp.classList.add('is-zero');
+    } else if (valor > 0) {
+        inp.classList.add('has-value');
+    } else {
+        inp.style.color = 'red';
+        inp.style.borderColor = 'red';
+    }
+}
+
 function aplicarSugestoesSalvas() {
     const sugestoes = carregarSugestoes();
     document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => {
@@ -634,7 +633,6 @@ function atualizarTotalLinha(row) {
     row.querySelectorAll('.input-hora').forEach(inp => {
         const v = parseHora(inp.value);
         if (v !== null && v > 0) soma += v;
-        // Não chama atualizarCorInput aqui para não sobrescrever a lógica de sugestões
     });
     const tc = row.querySelector('.total-cell');
     if (tc) tc.textContent = formatarHora(soma);
@@ -724,7 +722,6 @@ function recalcularTudo() {
     validarStreaks();
     atualizarTotaisBotoesDias();
     atualizarTodosContadores();
-    // Reaplica sugestões salvas após recálculo
     aplicarSugestoesSalvas();
 }
 
@@ -755,7 +752,7 @@ function ativarEdicaoDia(diaIndex) {
         showToast("⚠️ Desbloqueie a planilha primeiro.");
         return;
     }
-    sairEdicaoDia(); // Isso remove os destaques mas NÃO remove as classes sugestao
+    sairEdicaoDia();
     diaEditandoIndex = diaIndex;
 
     document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = true);
@@ -783,7 +780,6 @@ function sairEdicaoDia() {
             .forEach(inp => inp.disabled = true);
         document.querySelectorAll('.col-ativa').forEach(el => el.classList.remove('col-ativa'));
         document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-editando'));
-        // NÃO remove a classe 'sugestao' – ela permanece
         diaEditandoIndex = null;
         document.getElementById('btnSairDia').style.display = 'none';
         document.getElementById('btnPreencherVazios').style.display = 'none';
@@ -994,7 +990,6 @@ async function carregarDoBackend() {
                         inp.value = '';
                     }
                     
-                    // Aplica cor com sugestões salvas
                     const sugestoes = carregarSugestoes();
                     atualizarCorInput(inp, sugestoes);
                     inp.disabled = true;
@@ -1024,7 +1019,6 @@ async function carregarDoBackend() {
                         } else {
                             this.value = formatarHora(v);
                         }
-                        // Atualiza a cor (se for vazio, pode manter sugestão se tiver)
                         const sugestoes = carregarSugestoes();
                         atualizarCorInput(this, sugestoes);
                         atualizarTotalLinha(row);
@@ -1049,7 +1043,6 @@ async function carregarDoBackend() {
                 tbody.appendChild(row);
             }
         }
-        // Aplica sugestões salvas após montar
         aplicarSugestoesSalvas();
         recalcularTudo();
         criarBotoesDias();
