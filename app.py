@@ -25,8 +25,6 @@ print("✅ Flask e CORS configurados")
 sys.stdout.flush()
 
 # Tempo real: threading é o async_mode escolhido por não exigir eventlet/gevent
-# (que não funcionam bem no Render free tier). Funciona via long-polling e,
-# quando o servidor suportar, faz upgrade para WebSocket automaticamente.
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 print("✅ SocketIO configurado (async_mode=threading)")
 sys.stdout.flush()
@@ -40,9 +38,7 @@ else:
         database_url = database_url.replace("postgres://", "postgresql://", 1)
 
     if "supabase" in database_url.lower():
-        # Formato novo (pooler): postgresql://postgres.<ref>:senha@aws-x-region.pooler.supabase.com
         match = re.search(r'postgres\.([a-zA-Z0-9]+)[:@]', database_url)
-        # Formato antigo (conexão direta): postgresql://postgres:senha@<ref>.supabase.co
         if not match:
             match = re.search(r'://[^@]+@([^.]+)\.supabase\.co', database_url)
         if match:
@@ -120,6 +116,7 @@ class FlightLog(db.Model):
     month = db.Column(db.Integer, nullable=False)
     year = db.Column(db.Integer, nullable=False)
     hours = db.Column(db.Float, nullable=False, default=0.0)
+    sugestoes = db.Column(db.JSON, nullable=False, default={})  # <-- NOVO campo para sugestões
     pilot = db.relationship("Pilot", backref=db.backref("flight_logs", lazy=True))
 
 class StatusOverride(db.Model):
@@ -134,6 +131,10 @@ class StatusOverride(db.Model):
 
 print("✅ Modelos definidos")
 sys.stdout.flush()
+
+def getNomeMes(num):
+    meses = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"]
+    return meses[num-1] if 1 <= num <= 12 else "Julho"
 
 def normalizar_status(status):
     if status is None or status == "" or status == " ":
@@ -224,11 +225,18 @@ def get_data():
             for key, horas in logs_next_map.get(pilot_name, {}).items():
                 logs_adjacent[pilot_name][key] = horas
 
+        # Coleta todas as sugestões do mês
+        sugestoes_consolidadas = {}
+        for log in logs_current:
+            if log.sugestoes:
+                sugestoes_consolidadas.update(log.sugestoes)
+
         result = {
             "pilots": [{"name": p.name, "group": p.group, "full_name": p.full_name or p.name} for p in pilots],
             "logs": {},
             "logs_adjacent": logs_adjacent,
-            "escala": {}
+            "escala": {},
+            "sugestoes": sugestoes_consolidadas  # <-- Retorna as sugestões
         }
 
         for log in logs_current:
@@ -257,6 +265,11 @@ def save_data():
         if not month or not year:
             return jsonify({"success": False, "erro": "Mês e ano são obrigatórios"}), 400
         month = int(month); year = int(year)
+        
+        # Recebe as sugestões do frontend
+        sugestoes_recebidas = data.get("sugestoes", {})
+        mes_nome = getNomeMes(month)
+        
         eventos_para_emitir = []
         for pilot_name, days in data.get("logs", {}).items():
             pilot = Pilot.query.filter_by(name=pilot_name).first()
@@ -268,8 +281,22 @@ def save_data():
                 log = FlightLog.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
                 if log:
                     log.hours = valor_horas
+                    # Atualiza sugestões se existirem para este piloto/dia
+                    key = f"{mes_nome}_{year}_{pilot_name}_{day}"
+                    if not log.sugestoes:
+                        log.sugestoes = {}
+                    if key in sugestoes_recebidas and sugestoes_recebidas[key]:
+                        log.sugestoes[key] = True
+                    else:
+                        if key in log.sugestoes:
+                            del log.sugestoes[key]
                 else:
-                    db.session.add(FlightLog(pilot_id=pilot.id, day=day, month=month, year=year, hours=valor_horas))
+                    log = FlightLog(pilot_id=pilot.id, day=day, month=month, year=year, hours=valor_horas)
+                    # Salva sugestões iniciais
+                    key = f"{mes_nome}_{year}_{pilot_name}_{day}"
+                    if key in sugestoes_recebidas and sugestoes_recebidas[key]:
+                        log.sugestoes = {key: True}
+                    db.session.add(log)
                 eventos_para_emitir.append({
                     "pilot": pilot_name, "day": day, "value": valor_horas,
                     "month": month, "year": year
@@ -415,57 +442,6 @@ def povoar_dados_iniciais():
     print("✅ Pilotos populados (sem horas de exemplo)")
     sys.stdout.flush()
     return
-
-    # ⚠️ Dados de exemplo desativados — não são horas reais, eram só um teste.
-    # Se um dia quiser reativar, remova o "return" acima.
-    m_atual, y_atual = datetime.now().month, datetime.now().year
-    dados_foto = {
-        "Andrade": {1: 3.4, 2: 6.4, 3: 2.9, 5: 5.9, 6: 7.9, 7: 8.0, 9: 6.8},
-        "Amarildo": {1: 5.6, 2: 4.7, 3: 4.8, 4: 6.6, 5: 0.0, 7: 4.9, 8: 4.5},
-        "Cleverson": {1: 6.2, 2: 5.9, 4: 7.5, 5: 3.6, 6: 4.8, 7: 8.5},
-        "Hazafe": {3: 3.6, 4: 6.7, 8: 8.1},
-        "Dayvid": {3: 5.5, 4: 7.5, 8: 7.1},
-        "Edson": {1: 6.5, 2: 3.2, 3: 5.3, 4: 6.3, 5: 0.0, 6: 4.3, 8: 7.4, 9: 3.4},
-        "Frank": {1: 7.0, 2: 7.2, 4: 6.7, 5: 8.0, 7: 8.0},
-        "Gabriel": {1: 5.8, 3: 7.5, 5: 5.4, 6: 2.5, 7: 8.8, 8: 7.2},
-        "Igorh": {1: 7.0, 3: 7.5, 5: 7.5, 6: 2.4, 7: 8.0},
-        "Leandro": {1: 6.4, 2: 7.0, 3: 6.5, 6: 3.8, 7: 7.3, 8: 8.8},
-        "Paulo": {7: 8.2},
-        "Ronie": {1: 8.6, 3: 9.2, 4: 8.2, 8: 9.1, 9: 7.0},
-        "Sergio": {2: 8.0, 3: 6.0, 4: 8.7, 5: 6.4, 7: 8.2},
-        "Otto": {2: 3.8, 3: 6.4, 4: 1.0, 8: 7.3},
-        "Dany": {3: 7.5, 8: 4.0},
-        "Lucas": {8: 7.1},
-        "Roberto": {1: 3.7, 2: 3.0},
-        "Renan": {2: 5.5, 4: 5.5, 5: 6.4, 7: 8.0, 8: 6.0},
-        "Wellber": {1: 4.0, 3: 6.3, 4: 7.8, 5: 6.1, 7: 7.8},
-        "Bento": {8: 6.2, 9: 6.8},
-        "Costa": {1: 3.7, 2: 3.0, 5: 6.6, 6: 2.2, 8: 5.0},
-        "Victor": {2: 7.2, 5: 6.6, 6: 6.2, 7: 8.0},
-        "Matias": {3: 5.2, 4: 6.5, 8: 6.2},
-        "Cleiton": {2: 4.6, 3: 6.2},
-        "Joao": {2: 3.0, 5: 6.3, 7: 6.6},
-        "Pascoal": {6: 2.8},
-        "Lindomar": {5: 7.1, 6: 1.0, 7: 7.3},
-        "Perisson": {3: 7.7, 8: 2.8, 9: 7.0},
-        "Rui": {5: 7.5, 6: 2.9, 7: 7.9},
-        "Yago": {3: 7.3, 4: 5.7, 6: 6.1},
-        "Cauê": {3: 7.3, 5: 7.1, 7: 8.2},
-        "Ruben": {2: 3.0, 4: 5.7, 9: 7.0},
-        "Daniela": {6: 2.9, 7: 7.9},
-        "Thales": {5: 7.2, 6: 2.8},
-        "Serafim": {6: 6.1, 7: 6.6, 8: 2.8},
-        "Ronalldo": {7: 7.3},
-        "Rodrigo": {3: 6.2, 5: 6.3}
-    }
-    for p_name, dias_dados in dados_foto.items():
-        p_obj = Pilot.query.filter_by(name=p_name).first()
-        if p_obj:
-            for d_num, h_val in dias_dados.items():
-                db.session.add(FlightLog(pilot_id=p_obj.id, day=d_num, month=m_atual, year=y_atual, hours=float(h_val)))
-    db.session.commit()
-    print("✅ Dados iniciais populados")
-    sys.stdout.flush()
 
 def init_db():
     print("🔄 Tentando criar tabelas...")
