@@ -253,14 +253,12 @@
             border-color: #e4b149; 
             box-shadow: 0 0 5px gold; 
         }
-        /* Zero explícito: Dia trabalhado sem horas (Cinza) */
         .input-hora.is-zero { 
             background: #e0e0e0 !important; 
             border-color: #999 !important; 
             color: #555;
             font-weight: bold;
         }
-        /* Vazio: Sugestão de preenchimento (Verde) */
         .input-hora.sugestao { 
             background: #d4edda !important; 
             border-color: #6c9e6c !important; 
@@ -586,12 +584,9 @@ function atualizarCorInput(inp) {
     } else if (valor > 0) {
         inp.classList.add('has-value');
     } else if (valor < 0) {
-        // Valor negativo: trata como inválido, aplica estilo de erro
         inp.style.color = 'red';
         inp.style.borderColor = 'red';
-        // Não adiciona classe especial, mas pode ser tratado no blur
     } else {
-        // Remove estilo de erro caso exista
         inp.style.color = '';
         inp.style.borderColor = '';
     }
@@ -617,7 +612,6 @@ function validarStreaks() {
             const v = parseHora(inp.value);
             return (v !== null);
         });
-        
         const seq = new Array(DIAS).fill(false);
         let streak = 0, i = 0;
         while (i < DIAS) {
@@ -746,7 +740,6 @@ function ativarEdicaoDia(diaIndex) {
 // ===== CORREÇÃO CRÍTICA: sairEdicaoDia desabilita TODOS os inputs =====
 function sairEdicaoDia() {
     if (diaEditandoIndex !== null) {
-        // Desabilita todos os campos (independente de isEditing)
         document.querySelectorAll('#tabelaHoras tbody .input-hora')
             .forEach(inp => inp.disabled = true);
         document.querySelectorAll('.col-ativa').forEach(el => el.classList.remove('col-ativa'));
@@ -972,7 +965,6 @@ async function carregarDoBackend() {
                     inp.addEventListener('blur', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
                         let v = parseHora(this.value);
-                        // Trata valores negativos: converte para 0
                         if (v !== null && v < 0) {
                             v = 0;
                             this.value = formatarHora(v);
@@ -1010,7 +1002,6 @@ async function carregarDoBackend() {
         setEditMode(false);
         syncSpan.innerHTML = '✅ Carregado';
         setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 2000);
-        // Reinscrever no socket (se existir) após carregar novo mês
         if (socket && socket.connected) {
             socket.emit('join_month', { month: mesNum, year: anoAtual });
         }
@@ -1153,7 +1144,6 @@ document.getElementById('campoMes').addEventListener('change', function() {
     if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
     sairEdicaoDia();
     const nomeMes = this.value.trim();
-    // Não alteramos o ano; apenas o mês
     salvarMesAno(nomeMes, anoAtual);
     carregarDoBackend();
 });
