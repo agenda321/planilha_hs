@@ -3,304 +3,622 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Planilha de Horas (Offline)</title>
+    <title>Planilha de Horas | Registro de Voo</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1a237e">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Planilha Horas">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* ===== ESTILOS (resumidos para caber) ===== */
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
-            margin: 0; padding: 8px;
-            font-family: 'Segoe UI', sans-serif;
-            background: #f0ebe0;
-            display: flex; justify-content: center;
+            margin: 0; min-height: 100vh;
+            background: radial-gradient(circle at 20% 30%, #b87c4f, #6e4a2e);
+            font-family: 'Segoe UI', 'Georgia', serif;
+            padding: 8px;
+            display: flex; justify-content: center; align-items: flex-start;
         }
-        .container { max-width: 1400px; width: 100%; background: #fcf7e8; border-radius: 24px; padding: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.2); }
-        h1 { font-size: 1.4rem; color: #3b2a1f; text-align: center; margin: 0 0 12px; }
-        .top-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
-        .nav-mes { display: flex; align-items: center; gap: 6px; }
-        .nav-mes input { width: 100px; padding: 4px 8px; border-radius: 60px; border: 2px solid #c9aa77; background: #f9f2e0; text-align: center; font-weight: bold; }
-        .btn { background: #b88954; border: none; color: white; padding: 6px 14px; border-radius: 60px; font-weight: bold; cursor: pointer; font-size: 0.75rem; }
-        .btn:disabled { opacity: 0.5; }
-        .btn-verde { background: #2e7d32; }
-        .btn-vermelho { background: #b71c1c; }
-        .btn-azul { background: #1565c0; }
-        .badge { background: #b97f4b; padding: 4px 12px; border-radius: 60px; font-size: 0.7rem; font-weight: bold; color: #fff1cf; }
-        .badge-admin { background: #2e7d32; color: white; }
-        .status-chip { background: #4c351e; padding: 4px 12px; border-radius: 60px; font-size: 0.65rem; color: #ffe1a0; }
-        .dias-grade { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 10px 0; padding: 8px; background: #ddcdac; border-radius: 28px; }
-        .dia-btn { background: #f0dc9f; border: none; border-radius: 50px; padding: 6px 0; font-weight: bold; font-size: 0.7rem; box-shadow: 0 3px 0 #6b4828; cursor: pointer; text-align: center; }
-        .dia-btn.selecionado { background: #ffe066; box-shadow: 0 3px 0 #7a5200; }
-        .dia-btn.editando { background: #a5d6a5; box-shadow: 0 3px 0 #3e6b3e; }
-        .dia-btn .total-dia { display: block; font-size: 0.5rem; color: #5a3a10; }
-        .table-wrapper { overflow-x: auto; background: #ddcdac; padding: 6px; border-radius: 18px; }
-        table { width: 100%; border-collapse: collapse; background: #fff6e8; min-width: 800px; }
-        th, td { border: 1px solid #ebddbb; padding: 4px 2px; text-align: center; }
-        th { background: #b88954; color: white; position: sticky; top: 0; z-index: 10; font-size: 0.7rem; }
-        td:first-child { background: #f7efdc; font-weight: bold; text-align: left; padding-left: 6px; position: sticky; left: 0; z-index: 5; }
-        th:first-child { position: sticky; left: 0; z-index: 15; background: #9c7a50; }
-        .input-hora { width: 54px; padding: 4px; text-align: center; font-family: monospace; font-size: 0.75rem; background: #f9f2e0; border: 2px solid #c9aa77; border-radius: 12px; }
-        .input-hora:disabled { background: #f0ebe0; opacity: 0.7; }
-        .input-hora.has-value { background: #fff1b5; border-color: #e4b149; }
-        .input-hora.sugestao { background: #d4edda !important; border-color: #6c9e6c !important; }
-        .input-hora.streak { background: #ffb366 !important; border-color: #e67300 !important; }
-        .total-cell { background: #e7dbbc; font-weight: bold; }
-        .group-row td { background: #ccaa7a; font-weight: bold; font-size: 0.9rem; padding: 6px; text-align: center; }
-        .folga-badge { font-size: 0.6rem; margin-left: 4px; font-weight: bold; }
-        .folga-badge.normal { color: #3b2a1f; }
-        .folga-badge.igual8 { color: #e6a800; }
-        .folga-badge.acima8 { color: #cc0000; }
-        .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #3b2a1f; color: #ffe1a0; padding: 8px 20px; border-radius: 60px; font-size: 0.8rem; box-shadow: 0 4px 12px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999; }
+        .skeuo-container {
+            max-width: 1400px; width: 100%;
+            background: #e2d6c0;
+            background-image: repeating-linear-gradient(45deg, #dacaa8 0px, #dacaa8 2px, #efe3c9 2px, #efe3c9 8px);
+            border-radius: 32px;
+            box-shadow: 0 25px 45px rgba(0,0,0,0.5), inset 0 1px 4px rgba(255,255,200,0.8);
+            padding: 10px;
+        }
+        .planilha-card {
+            background: #fcf7e8; border-radius: 24px;
+            box-shadow: inset 0 0 0 2px #fff9e8, inset 0 0 0 6px #d9c894, 0 12px 28px rgba(0,0,0,0.4);
+            padding: 6px 0 10px;
+        }
+        .cabecalho-skeuo {
+            padding: 8px 16px;
+            border-bottom: 2px solid #b28b5e;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            background: linear-gradient(to bottom, #fdf5e0, #f4e5ca);
+            border-radius: 20px 20px 12px 12px;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+        .title-area { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        h1 {
+            font-family: Georgia;
+            font-size: 1.2rem;
+            margin: 0;
+            color: #3b2a1f;
+            text-shadow: 2px 2px 0 #cdb086;
+        }
+        .nav-mes { display: flex; align-items: center; gap: 8px; }
+        .mes-editavel {
+            background: #f9f2e0; border: 2px solid #c9aa77; border-radius: 60px;
+            padding: 4px 12px; font-family: monospace; font-size: 0.85rem; font-weight: bold;
+            width: 110px; text-align: center;
+        }
+        .mes-editavel:disabled { background: #e9e0cf; opacity: 0.8; }
+        .badge-senha {
+            background: #b97f4b; border-radius: 60px; padding: 4px 12px;
+            font-size: 0.7rem; font-weight: bold; color: #fff1cf;
+            box-shadow: inset 0 1px 2px #ffdd99, 0 3px 6px rgba(0,0,0,0.2);
+        }
+        .badge-senha.admin-mode { background: #2e7d32; color: #fff; }
+        .top-actions {
+            padding: 0 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .button-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .btn-skeuo {
+            background: radial-gradient(circle at 30% 20%, #f3de9f, #cb9e6b);
+            border: none;
+            font-size: 0.75rem;
+            font-weight: bold;
+            padding: 7px 14px;
+            border-radius: 60px;
+            box-shadow: 0 4px 0 #7a4f2c;
+            cursor: pointer;
+            transition: 0.05s linear;
+            touch-action: manipulation;
+        }
+        .btn-skeuo:active { transform: translateY(3px); box-shadow: 0 1px 0 #7a4f2c; }
+        .btn-skeuo:disabled { opacity: 0.45; cursor: default; transform: none; }
+        .btn-skeuo.rank-btn { background: radial-gradient(circle at 30% 20%, #9fcbef, #6b8fcb); box-shadow: 0 4px 0 #2f4f7a; }
+        .btn-skeuo.rank-btn:active { box-shadow: 0 1px 0 #2f4f7a; }
+        .btn-skeuo.sair-btn { background: radial-gradient(circle at 30% 20%, #f3a49f, #cb6b6b); box-shadow: 0 4px 0 #7a2f2f; display: none; }
+        .btn-skeuo.sair-btn:active { box-shadow: 0 1px 0 #7a2f2f; }
+        .btn-skeuo.preencher-btn { background: radial-gradient(circle at 30% 20%, #a5d6a5, #6f9e6f); box-shadow: 0 4px 0 #2e6b2e; display: none; }
+        .btn-skeuo.preencher-btn:active { box-shadow: 0 1px 0 #2e6b2e; }
+
+        .info-bar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding: 0 12px 6px;
+            gap: 8px;
+        }
+        .sync-status {
+            font-size: 0.65rem;
+            background: #4c351e;
+            padding: 3px 10px;
+            border-radius: 60px;
+            color: #ffe1a0;
+        }
+        .sync-status.rt-on { background: #1b5e20; }
+        .sync-status.rt-off { background: #6d4c1f; }
+        .btn-ajuda {
+            background: #7a5230;
+            color: #ffe1a0;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 0.85rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            touch-action: manipulation;
+        }
+
+        .dias-botoes {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            margin: 0 8px 8px;
+            padding: 8px;
+            background: #ddcdac;
+            border-radius: 28px;
+            box-shadow: inset 0 0 0 2px #fef1cf, inset 0 0 0 4px #c2a570;
+        }
+        .btn-dia {
+            background: radial-gradient(circle at 30% 20%, #f0dc9f, #c29a5e);
+            border: none;
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 7px 0;
+            border-radius: 50px;
+            box-shadow: 0 3px 0 #6b4828;
+            cursor: pointer;
+            transition: 0.05s linear;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1px;
+            line-height: 1.1;
+            width: 100%;
+            min-width: 0;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .btn-dia .dia-num { font-size: 0.72rem; font-weight: bold; }
+        .btn-dia .dia-total { font-size: 0.5rem; color: #5a3a10; white-space: nowrap; }
+        .btn-dia.tem-dados .dia-total { color: #a05000; font-weight: bold; }
+        .btn-dia.dia-selecionado {
+            background: radial-gradient(circle at 30% 20%, #ffe066, #e6a800);
+            box-shadow: 0 3px 0 #7a5200, 0 0 8px 2px rgba(230,167,0,0.5);
+            color: #3b2a00;
+        }
+        .btn-dia.dia-editando {
+            background: radial-gradient(circle at 30% 20%, #a5d6a5, #6f9e6f);
+            box-shadow: 0 3px 0 #3e6b3e;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 0 8px;
+            background: #ddcdac;
+            padding: 6px;
+            border-radius: 18px;
+            max-height: 55vh;
+            -webkit-overflow-scrolling: touch;
+        }
+        .planilha {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff6e8;
+            min-width: 900px;
+        }
+        .planilha th, .planilha td {
+            border: 1px solid #ebddbb;
+            padding: 6px 3px;
+            text-align: center;
+        }
+        .planilha th {
+            background: linear-gradient(to bottom, #b88954, #7e5937);
+            color: #fff4e0;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-size: 0.75rem;
+        }
+        .planilha td:first-child {
+            background: #f7efdc;
+            font-weight: bold;
+            text-align: left;
+            position: sticky;
+            left: 0;
+            z-index: 5;
+            border-right: 2px solid #dbb87a;
+            font-size: 0.8rem;
+            padding-left: 6px;
+        }
+        .planilha th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 15;
+            background: #9c7a50;
+        }
+        .planilha th.col-ativa { background: linear-gradient(to bottom, #e6a800, #a07000) !important; }
+        .planilha td.col-ativa { background: #fffacc !important; }
+
+        .input-hora {
+            width: 58px;
+            padding: 4px;
+            text-align: center;
+            font-family: monospace;
+            font-size: 0.78rem;
+            background: #f9f2e0;
+            border: 2px solid #c9aa77;
+            border-radius: 12px;
+            transition: all 0.15s;
+            touch-action: manipulation;
+        }
+        .input-hora::placeholder { color: #bbb; font-size: 0.65rem; }
+        .input-hora.has-value { background: #fff1b5; border-color: #e4b149; box-shadow: 0 0 5px gold; }
+        .input-hora.sugestao { background: #d4edda !important; border-color: #6c9e6c !important; box-shadow: 0 0 6px #6c9e6c; }
+        .input-hora.streak-day { background: #ffb366; border-color: #e67300; box-shadow: 0 0 8px #e67300; }
+        .input-hora:disabled, .input-hora[readonly] {
+            background: #f0ebe0;
+            cursor: not-allowed;
+            opacity: 0.85;
+        }
+        .input-hora:focus:not(:disabled) {
+            outline: 2px solid #ffaa00;
+            box-shadow: 0 0 0 4px rgba(255,170,0,0.3);
+            background: #fff8e0 !important;
+        }
+        .total-cell { background: #e7dbbc; font-weight: bold; font-size: 0.8rem; }
+        .group-title-row td {
+            background: linear-gradient(135deg, #ccaa7a, #b1834d);
+            font-weight: bold;
+            font-size: 1rem;
+            text-align: center;
+            padding: 6px;
+        }
+
+        .info-footer {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin: 6px 12px 0;
+            gap: 8px;
+        }
+        .status-chip {
+            background: #4c351e;
+            border-radius: 60px;
+            padding: 4px 12px;
+            font-size: 0.65rem;
+            font-weight: bold;
+            color: #ffe1a0;
+            box-shadow: inset 0 1px 3px #ffdf9a, 0 2px 4px black;
+        }
+
+        /* Modais */
+        .modal-senha, .modal-detalhe, .modal-ajuda {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        .card-senha, .card-detalhe, .card-ajuda {
+            background: #fdf5e6;
+            border-radius: 32px;
+            width: 92%;
+            max-width: 500px;
+            padding: 20px;
+            box-shadow: 0 20px 35px black;
+            max-height: 88vh;
+            overflow-y: auto;
+        }
+        .card-senha { text-align: center; max-width: 320px; }
+        .card-senha input {
+            width: 100%;
+            padding: 10px;
+            margin: 16px 0;
+            border-radius: 60px;
+            border: 2px solid #b67e45;
+            background: #fff2e0;
+            font-size: 1rem;
+            text-align: center;
+        }
+        .botoes-senha { display: flex; gap: 12px; justify-content: center; }
+        .btn-modal {
+            background: #a07143;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 60px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            touch-action: manipulation;
+        }
+        .btn-fechar {
+            background: #b07842;
+            border: none;
+            padding: 10px 28px;
+            border-radius: 60px;
+            color: white;
+            margin-top: 16px;
+            cursor: pointer;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+            touch-action: manipulation;
+        }
+        .toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #3b2a1f;
+            color: #ffe1a0;
+            padding: 8px 20px;
+            border-radius: 60px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            white-space: nowrap;
+            max-width: 90vw;
+        }
         .toast.show { opacity: 1; }
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 2000; }
-        .modal-card { background: #fdf5e6; border-radius: 32px; padding: 24px; max-width: 320px; width: 90%; text-align: center; }
-        .modal-card input { width: 100%; padding: 10px; margin: 16px 0; border-radius: 60px; border: 2px solid #b67e45; text-align: center; font-size: 1rem; }
-        .modal-card .btn-group { display: flex; gap: 12px; justify-content: center; }
-        @media (max-width: 600px) { .input-hora { width: 40px; font-size: 0.7rem; } th, td { padding: 2px 1px; } .btn { font-size: 0.65rem; padding: 4px 10px; } }
+
+        .folga-badge {
+            font-size: 0.65rem;
+            margin-left: 4px;
+            font-weight: bold;
+        }
+        .folga-badge.normal { color: #3b2a1f; }
+        .folga-badge.igual8 { color: #e6a800; font-weight: bold; }
+        .folga-badge.acima8 { color: #cc0000; font-weight: bold; }
+
+        .progress-bar-wrap {
+            background: #e0cfa8;
+            border-radius: 10px;
+            height: 12px;
+            width: 100%;
+            overflow: hidden;
+        }
+        .barra-fill {
+            background: #e67e22;
+            height: 100%;
+            border-radius: 10px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .card-ajuda { max-width: 360px; }
+        .ajuda-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0cfa8;
+            font-size: 0.85rem;
+        }
+        .ajuda-cor {
+            width: 36px;
+            height: 24px;
+            border-radius: 8px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+
+        @media (max-width: 600px) {
+            .cabecalho-skeuo { flex-direction: column; align-items: stretch; }
+            .title-area { justify-content: center; }
+            .top-actions { flex-direction: column; align-items: stretch; }
+            .button-group { justify-content: center; }
+            .btn-skeuo { font-size: 0.7rem; padding: 6px 10px; }
+            .input-hora { width: 44px; font-size: 0.7rem; }
+            .planilha th, .planilha td { padding: 4px 2px; }
+        }
     </style>
 </head>
 <body>
-<div class="container">
-    <h1>✈️ REGISTRO DE HORAS (OFFLINE)</h1>
-    <div class="top-bar">
-        <div class="nav-mes">
-            <button class="btn" id="btnMesAnt">◀</button>
-            <input type="text" id="campoMes" value="Agosto" disabled>
-            <button class="btn" id="btnMesProx">▶</button>
+<div class="skeuo-container">
+    <div class="planilha-card">
+
+        <!-- Cabeçalho -->
+        <div class="cabecalho-skeuo">
+            <div class="title-area">
+                <h1>✈️ REGISTRO DE HORAS</h1>
+                <div class="nav-mes">
+                    <button class="btn-skeuo" id="btnMesAnterior">◀</button>
+                    <input type="text" id="campoMes" class="mes-editavel" value="Agosto" disabled>
+                    <button class="btn-skeuo" id="btnMesProximo">▶</button>
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <span class="badge-senha" id="statusBadge">🔒 LEITURA</span>
+            </div>
         </div>
-        <div><span class="badge" id="statusBadge">🔒 LEITURA</span></div>
-    </div>
-    <div class="top-bar">
-        <div style="display:flex;flex-wrap:wrap;gap:6px;">
-            <button class="btn" id="btnDesbloquear">🔐 DESBLOQUEAR</button>
-            <button class="btn" id="btnBloquear" disabled>🔒 BLOQUEAR</button>
-            <button class="btn btn-vermelho" id="btnSairDia" style="display:none;">✖ SAIR</button>
-            <button class="btn btn-verde" id="btnPreencher" style="display:none;">🎨 PREENCHER VAZIOS</button>
-            <button class="btn btn-azul" id="btnRanking">📊 RANKING</button>
+
+        <!-- Ações -->
+        <div class="top-actions">
+            <div class="button-group">
+                <button class="btn-skeuo" id="btnDesbloquear">🔐 DESBLOQUEAR</button>
+                <button class="btn-skeuo" id="btnBloquear" disabled>🔒 BLOQUEAR</button>
+                <button class="btn-skeuo sair-btn" id="btnSairDia" style="display:none;">✖ SAIR</button>
+                <button class="btn-skeuo preencher-btn" id="btnPreencherVazios" style="display:none;">🎨 PREENCHER VAZIOS</button>
+                <button class="btn-skeuo rank-btn" id="btnRanking">📊 RANKING</button>
+            </div>
+            <div class="info-bar" style="padding:0;">
+                <span class="sync-status" id="syncStatus">💾 Carregando...</span>
+                <button class="btn-ajuda" id="btnAjuda" title="Legenda">?</button>
+            </div>
         </div>
-        <span class="status-chip" id="editModeChip">📖 VISUALIZAÇÃO</span>
-    </div>
-    <div class="dias-grade" id="diasGrade"></div>
-    <div class="table-wrapper">
-        <table id="tabela">
-            <thead id="thead"></thead>
-            <tbody id="tbody"></tbody>
-            <tfoot id="tfoot"></tfoot>
-        </table>
+
+        <!-- Dias (botões rápidos) -->
+        <div class="dias-botoes" id="botoesDias"></div>
+
+        <!-- Tabela -->
+        <div class="table-wrapper">
+            <table class="planilha" id="tabelaHoras">
+                <thead id="tableHeader"></thead>
+                <tbody id="planilhaBody"></tbody>
+                <tfoot id="tfootTotal"></tfoot>
+            </table>
+        </div>
+
+        <div class="info-footer">
+            <div class="status-chip" id="editModeChip">📖 VISUALIZAÇÃO</div>
+        </div>
+
     </div>
 </div>
-<div class="toast" id="toast"></div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
-// ============================================================
-// ===== CONFIGURAÇÃO OFFLINE =====
-// ============================================================
-const SENHA_VALIDA = "Emerson";
+// ===== TOAST =====
+function showToast(msg, duracao = 2500) {
+    let toast = document.getElementById('toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast';
+        toast.className = 'toast';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.remove('show'), duracao);
+}
+
+// ===== PERSISTÊNCIA DO MÊS =====
+const MES_STORAGE_KEY = 'planilha_mes_selecionado';
+function salvarMesNoStorage(mes) { localStorage.setItem(MES_STORAGE_KEY, mes); }
+function obterMesDoStorage() { return localStorage.getItem(MES_STORAGE_KEY) || null; }
+
 let DIAS = 31;
 let anoAtual = new Date().getFullYear();
 let isEditing = false;
-let diaEditando = null;
-let LOGS = {};
-let PILOTOS = [];
+let password = "";
+let diaEditandoIndex = null;
+let isSaving = false;
 
-// DADOS DE EXEMPLO (MOCK)
-const PILOTOS_MOCK = ["João Silva", "Maria Oliveira", "Carlos Santos", "Ana Pereira", "Rafael Lima"];
-const LOGS_MOCK = {
-    "João Silva": { 1: 5.5, 3: 4.0, 5: 6.0, 7: 7.0, 10: 3.5, 12: 5.0, 15: 6.5 },
-    "Maria Oliveira": { 2: 3.5, 4: 5.0, 6: 4.5, 8: 7.0, 11: 4.0, 14: 5.5 },
-    "Carlos Santos": { 1: 6.0, 2: 7.0, 8: 5.5, 13: 6.0, 18: 4.5 },
-    "Ana Pereira": { 3: 8.0, 5: 6.5, 9: 7.5, 16: 5.0, 20: 6.0 },
-    "Rafael Lima": { 4: 4.0, 6: 5.0, 10: 6.0, 17: 7.0, 22: 5.5 }
-};
-
-// ===== MÊS =====
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-function nomeMes(n) { return MESES[n-1] || "Julho"; }
-function numMes(nome) {
-    const map = {"janeiro":1,"fevereiro":2,"março":3,"abril":4,"maio":5,"junho":6,"julho":7,"agosto":8,"setembro":9,"outubro":10,"novembro":11,"dezembro":12};
-    return map[nome.toLowerCase()] || new Date().getMonth()+1;
+function getMesNumero(nomeMes) {
+    const mapa = { "janeiro":1, "fevereiro":2, "março":3, "abril":4, "maio":5, "junho":6, "julho":7, "agosto":8, "setembro":9, "outubro":10, "novembro":11, "dezembro":12 };
+    return mapa[nomeMes.toLowerCase()] || new Date().getMonth() + 1;
 }
-function diasNoMes(m, a) { return new Date(a, m, 0).getDate(); }
+function getNomeMes(num) { return MESES[num-1] || "Julho"; }
 
-// ===== UTILITÁRIOS =====
-function parseHora(v) { if(!v) return 0; let n=parseFloat(String(v).trim().replace(',','.')); return isNaN(n)?0:n; }
-function fmtHora(n) { return n.toFixed(1).replace('.',','); }
-function toast(msg, dur=2500) {
-    const el = document.getElementById('toast');
-    el.textContent = msg;
-    el.classList.add('show');
-    clearTimeout(el._t);
-    el._t = setTimeout(() => el.classList.remove('show'), dur);
+function diasNoMes(mesNum, ano) {
+    return new Date(ano, mesNum, 0).getDate();
 }
+function atualizarDias() {
+    const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+    const mesNum = getMesNumero(mesNome);
+    DIAS = diasNoMes(mesNum, anoAtual);
+    return DIAS;
+}
+
+function parseHora(v) {
+    if (!v) return 0;
+    let n = parseFloat(String(v).trim().replace(',','.'));
+    return isNaN(n) ? 0 : n;
+}
+function formatarHora(n) { return n.toFixed(1).replace('.',','); }
 
 // ===== GRUPOS =====
+const GRUPOS_PILOTO = {
+    "CARAVAN": ["Cleiton","Joao","Pascoal","Lindomar","Perisson","Rui","Yago"],
+    "COPILOTO": ["Cauê","Ruben","Ernesto","Daniela","Thales","Serafim","Ronalldo","Rodrigo"]
+};
 function getGrupo(nome) {
-    const car = ["Cleiton","Joao","Pascoal","Lindomar","Perisson","Rui","Yago"];
-    const cop = ["Cauê","Ruben","Ernesto","Daniela","Thales","Serafim","Ronalldo","Rodrigo"];
-    if (car.includes(nome)) return "CARAVAN";
-    if (cop.includes(nome)) return "COPILOTO";
+    if (GRUPOS_PILOTO["CARAVAN"].includes(nome)) return "CARAVAN";
+    if (GRUPOS_PILOTO["COPILOTO"].includes(nome)) return "COPILOTO";
     return "CESSNA 206/210";
 }
 
-// ============================================================
-// ===== INICIALIZAÇÃO DOS DADOS MOCK =====
-// ============================================================
-function initMockData() {
-    PILOTOS = [...PILOTOS_MOCK];
-    LOGS = {};
-    PILOTOS.forEach(p => {
-        LOGS[p] = {};
-        for (let d=1; d<=DIAS; d++) {
-            LOGS[p][d] = (LOGS_MOCK[p] && LOGS_MOCK[p][d]) ? LOGS_MOCK[p][d] : 0;
-        }
-    });
+// ===== DADOS =====
+let LOGS = {};
+
+function getNomeFromRow(row) {
+    if (row.dataset && row.dataset.pilot) return row.dataset.pilot;
+    const nomeCell = row.cells[0];
+    const primeiroNo = nomeCell?.childNodes[0];
+    if (primeiroNo && primeiroNo.nodeType === Node.TEXT_NODE) return primeiroNo.textContent.trim();
+    return nomeCell?.innerText.trim() || "";
 }
 
-// ============================================================
-// ===== RENDERIZAÇÃO =====
-// ============================================================
-function renderizar() {
-    const mesNome = document.getElementById('campoMes').value;
-    const mesNum = numMes(mesNome);
-    DIAS = diasNoMes(mesNum, anoAtual);
-    initMockData();
-
-    const thead = document.getElementById('thead');
-    let h = `<tr><th>👤 PILOTO</th>`;
-    for (let i=1; i<=DIAS; i++) {
-        const d = new Date(anoAtual, mesNum-1, i);
-        const sem = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()];
-        h += `<th>${String(i).padStart(2,'0')} ${sem}</th>`;
+function atualizarCorInput(inp) {
+    const valor = parseHora(inp.value);
+    if (valor > 0) {
+        inp.classList.add('has-value');
+        inp.classList.remove('sugestao'); // Remove cor de sugestão se tiver valor
+    } else {
+        inp.classList.remove('has-value');
+        // Não remove sugestao aqui para manter a cor
     }
-    h += `<th>⭐ TOTAL</th></tr>`;
-    thead.innerHTML = h;
-
-    const tbody = document.getElementById('tbody');
-    tbody.innerHTML = '';
-    const grupos = {"CESSNA 206/210":[], "CARAVAN":[], "COPILOTO":[]};
-    PILOTOS.forEach(p => {
-        const g = getGrupo(p);
-        if (grupos[g]) grupos[g].push(p);
-        else grupos["CESSNA 206/210"].push(p);
-    });
-
-    for (let g of ["CESSNA 206/210","CARAVAN","COPILOTO"]) {
-        if (grupos[g].length === 0) continue;
-        const tr = document.createElement('tr');
-        tr.className = 'group-row';
-        tr.innerHTML = `<td colspan="${DIAS+2}">${g}</td>`;
-        tbody.appendChild(tr);
-        for (let nome of grupos[g]) {
-            const row = document.createElement('tr');
-            row.dataset.pilot = nome;
-            const tdNome = document.createElement('td');
-            tdNome.textContent = nome;
-            row.appendChild(tdNome);
-            let total = 0;
-            for (let i=1; i<=DIAS; i++) {
-                const td = document.createElement('td');
-                const inp = document.createElement('input');
-                inp.type = 'text';
-                inp.inputMode = 'decimal';
-                inp.className = 'input-hora';
-                inp.dataset.pilot = nome;
-                inp.dataset.dia = i;
-                const val = LOGS[nome][i] || 0;
-                if (val > 0) { inp.value = fmtHora(val); total += val; inp.classList.add('has-value'); }
-                inp.disabled = true;
-
-                inp.addEventListener('input', function() {
-                    if (!isEditing || diaEditando !== parseInt(this.dataset.dia)) return;
-                    this.classList.remove('sugestao');
-                    const v = parseHora(this.value);
-                    if (v > 0) { this.value = fmtHora(v); this.classList.add('has-value'); }
-                    else { this.value = ''; this.classList.remove('has-value'); }
-                    atualizarTotaisLinha(row);
-                    recalcularTudo();
-                });
-                inp.addEventListener('blur', function() {
-                    if (!isEditing || diaEditando !== parseInt(this.dataset.dia)) return;
-                    const v = parseHora(this.value);
-                    if (v > 0) { this.value = fmtHora(v); this.classList.add('has-value'); }
-                    else { this.value = ''; this.classList.remove('has-value'); }
-                    atualizarTotaisLinha(row);
-                    recalcularTudo();
-                });
-                inp.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter' && isEditing && diaEditando === parseInt(this.dataset.dia)) {
-                        e.preventDefault();
-                        this.blur();
-                    }
-                });
-
-                td.appendChild(inp);
-                row.appendChild(td);
-            }
-            const tdTotal = document.createElement('td');
-            tdTotal.className = 'total-cell';
-            tdTotal.textContent = fmtHora(total);
-            row.appendChild(tdTotal);
-            tbody.appendChild(row);
-        }
-    }
-    recalcularTudo();
-    criarBotoesDias();
-    if (diaEditando !== null) ativarEdicaoDia(diaEditando);
 }
 
-function atualizarTotaisLinha(row) {
+function atualizarTotalLinha(row) {
     let soma = 0;
     row.querySelectorAll('.input-hora').forEach(inp => {
         const v = parseHora(inp.value);
         if (v > 0) soma += v;
-        if (v === 0) inp.classList.remove('has-value');
-        else inp.classList.add('has-value');
+        atualizarCorInput(inp);
     });
     const tc = row.querySelector('.total-cell');
-    if (tc) tc.textContent = fmtHora(soma);
+    if (tc) tc.textContent = formatarHora(soma);
+    return soma;
 }
 
-// ===== STREAK E FOLGAS =====
+// ===== STREAK (6 dias trabalhados → 7º laranja) =====
 function validarStreaks() {
-    document.querySelectorAll('#tbody tr:not(.group-row)').forEach(row => {
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
         const inputs = row.querySelectorAll('.input-hora');
         const vals = Array.from(inputs).map(inp => parseHora(inp.value) > 0 ? 1 : 0);
         const seq = new Array(DIAS).fill(false);
-        let streak = 0, i=0;
+        let streak = 0, i = 0;
         while (i < DIAS) {
             if (vals[i]) {
                 streak++;
                 if (streak === 6) {
-                    for (let j=i-5; j<=i; j++) seq[j] = true;
-                    if (i+1 < DIAS) seq[i+1] = true;
+                    for (let j = i - 5; j <= i; j++) seq[j] = true;
+                    const diaSeguinte = i + 1;
+                    if (diaSeguinte < DIAS) seq[diaSeguinte] = true;
                     streak = 0;
-                    i = i+2;
+                    i = diaSeguinte + 1;
                     continue;
                 }
             } else { streak = 0; }
             i++;
         }
-        inputs.forEach((inp, idx) => inp.classList.toggle('streak', seq[idx]));
+        inputs.forEach((inp, idx) => inp.classList.toggle('streak-day', seq[idx]));
     });
 }
 
-function contarFolgas(nome, row) {
+// ===== CONTAGEM DE FOLGAS (baseada em células vazias) =====
+function getLimiteDiasContagem() {
     const hoje = new Date();
-    const mesReal = hoje.getMonth()+1;
+    const mesReal = hoje.getMonth() + 1;
     const anoReal = hoje.getFullYear();
-    const mesExib = numMes(document.getElementById('campoMes').value);
-    let limite = DIAS;
-    if (anoAtual === anoReal && mesExib === mesReal) limite = hoje.getDate();
-    if (anoAtual > anoReal || (anoAtual === anoReal && mesExib > mesReal)) limite = 0;
+    const mesExibidoNome = document.getElementById('campoMes').value.trim() || "Julho";
+    const mesExibido = getMesNumero(mesExibidoNome);
+    if (anoAtual === anoReal && mesExibido === mesReal) return hoje.getDate();
+    if (anoAtual < anoReal || (anoAtual === anoReal && mesExibido < mesReal)) return DIAS;
+    return 0;
+}
+
+function contarFolgas(nome, row) {
+    const limite = getLimiteDiasContagem();
     let count = 0;
-    for (let i=0; i<limite; i++) {
+    for (let i = 0; i < limite; i++) {
         const inp = row.cells[i+1]?.querySelector('.input-hora');
-        if (!inp) continue;
-        if (parseHora(inp.value) === 0) count++;
+        const horas = inp ? parseHora(inp.value) : 0;
+        if (horas === 0) count++;
     }
     return count;
 }
 
-function atualizarFolgas() {
-    document.querySelectorAll('#tbody tr:not(.group-row)').forEach(row => {
-        const nome = row.dataset.pilot;
+function atualizarTodosContadores() {
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const nome = getNomeFromRow(row);
         const count = contarFolgas(nome, row);
         const tdNome = row.cells[0];
         let badge = tdNome.querySelector('.folga-badge');
@@ -309,8 +627,8 @@ function atualizarFolgas() {
             badge.className = 'folga-badge';
             tdNome.appendChild(badge);
         }
-        const d = String(count).split('').map(c => '⁰¹²³⁴⁵⁶⁷⁸⁹'[parseInt(c)]).join('');
-        badge.textContent = d;
+        const digits = String(count).split('').map(d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[parseInt(d)]).join('');
+        badge.textContent = digits;
         badge.className = 'folga-badge';
         if (count < 8) badge.classList.add('normal');
         else if (count === 8) badge.classList.add('igual8');
@@ -319,259 +637,500 @@ function atualizarFolgas() {
 }
 
 function recalcularTudo() {
-    let somaGeral = 0;
-    document.querySelectorAll('#tbody tr:not(.group-row)').forEach(row => {
-        let s = 0;
-        row.querySelectorAll('.input-hora').forEach(inp => {
-            const v = parseHora(inp.value);
-            if (v>0) s+=v;
-        });
-        const tc = row.querySelector('.total-cell');
-        if (tc) tc.textContent = fmtHora(s);
-        somaGeral += s;
-    });
-    const tfoot = document.getElementById('tfoot');
+    let soma = 0;
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => soma += atualizarTotalLinha(row));
+    const tfoot = document.getElementById('tfootTotal');
     tfoot.innerHTML = '';
     const tr = document.createElement('tr');
-    let html = `<td style="font-weight:bold">🏁 TOTAL GERAL</td>`;
-    for (let i=1; i<=DIAS; i++) {
-        let somaDia = 0;
-        document.querySelectorAll('#tbody tr:not(.group-row)').forEach(row => {
-            const inp = row.cells[i]?.querySelector('.input-hora');
-            if (inp) somaDia += parseHora(inp.value);
-        });
-        html += `<td>${fmtHora(somaDia)}</td>`;
-    }
-    html += `<td class="total-cell">${fmtHora(somaGeral)}</td>`;
-    tr.innerHTML = html;
+    tr.innerHTML = `<td style="font-weight:bold">🏁 TOTAL GERAL</td>${'<td></td>'.repeat(DIAS)}<td class="total-geral">${formatarHora(soma)}</td>`;
     tfoot.appendChild(tr);
     validarStreaks();
-    atualizarFolgas();
     atualizarTotaisBotoesDias();
+    atualizarTodosContadores();
 }
 
-function totalHorasDia(dia) {
-    let s = 0;
-    document.querySelectorAll('#tbody tr:not(.group-row)').forEach(row => {
-        const inp = row.cells[dia]?.querySelector('.input-hora');
-        if (inp) s += parseHora(inp.value);
+function totalHorasDia(diaIndex) {
+    let soma = 0;
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const inp = row.cells[diaIndex+1]?.querySelector('.input-hora');
+        if (inp) { const v=parseHora(inp.value); if(v>0) soma+=v; }
     });
-    return s;
+    return soma;
 }
 
 function atualizarTotaisBotoesDias() {
-    document.querySelectorAll('.dia-btn').forEach((btn, i) => {
-        const total = totalHorasDia(i+1);
-        const el = btn.querySelector('.total-dia');
-        if (el) el.textContent = total > 0 ? fmtHora(total)+'h' : '';
+    document.querySelectorAll('.btn-dia').forEach((btn, i) => {
+        const total = totalHorasDia(i);
+        const el = btn.querySelector('.dia-total');
+        if (el) el.textContent = total > 0 ? formatarHora(total)+'h' : '';
+        btn.classList.toggle('tem-dados', total > 0);
     });
 }
 
-// ============================================================
-// ===== EDIÇÃO DE DIA =====
-// ============================================================
-function ativarEdicaoDia(dia) {
-    if (!isEditing) { toast('⚠️ Desbloqueie a planilha primeiro.'); return; }
+// ===== EDIÇÃO POR COLUNA =====
+function ativarEdicaoDia(diaIndex) {
+    if (!isEditing) {
+        showToast("⚠️ Desbloqueie a planilha primeiro.");
+        return;
+    }
     sairEdicaoDia();
-    diaEditando = dia;
-    document.querySelectorAll('#tbody .input-hora').forEach(inp => inp.disabled = true);
-    document.querySelectorAll('#tbody tr:not(.group-row)').forEach(row => {
-        const inp = row.cells[dia]?.querySelector('.input-hora');
+    diaEditandoIndex = diaIndex;
+
+    document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = true);
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const inp = row.cells[diaIndex + 1]?.querySelector('.input-hora');
         if (inp) inp.disabled = false;
     });
-    document.querySelectorAll('th.col-ativa, td.col-ativa').forEach(el => el.classList.remove('col-ativa'));
-    const ths = document.querySelectorAll('#thead th');
-    if (ths[dia]) ths[dia].classList.add('col-ativa');
-    document.querySelectorAll('#tbody tr:not(.group-row)').forEach(row => {
-        if (row.cells[dia]) row.cells[dia].classList.add('col-ativa');
+
+    document.querySelectorAll('.col-ativa').forEach(el => el.classList.remove('col-ativa'));
+    document.querySelectorAll('#tableHeader th')[diaIndex + 1]?.classList.add('col-ativa');
+    document.querySelectorAll('#tabelaHoras tbody tr').forEach(row => {
+        if (row.cells[diaIndex + 1]) row.cells[diaIndex + 1].classList.add('col-ativa');
     });
-    document.querySelectorAll('.dia-btn').forEach((b, i) => b.classList.toggle('editando', i+1 === dia));
+
+    document.querySelectorAll('.btn-dia').forEach((btn, i) => btn.classList.toggle('dia-editando', i === diaIndex));
     document.getElementById('btnSairDia').style.display = 'inline-block';
-    document.getElementById('btnPreencher').style.display = 'inline-block';
-    toast(`✏️ Editando dia ${String(dia).padStart(2,'0')}`);
+    document.getElementById('btnPreencherVazios').style.display = 'inline-block';
+    showToast(`✏️ Editando dia ${String(diaIndex + 1).padStart(2,'00')}`);
 }
 
 function sairEdicaoDia() {
-    if (diaEditando !== null) {
-        document.querySelectorAll('#tbody .input-hora').forEach(inp => inp.disabled = !isEditing);
-        document.querySelectorAll('th.col-ativa, td.col-ativa').forEach(el => el.classList.remove('col-ativa'));
-        document.querySelectorAll('.dia-btn').forEach(b => b.classList.remove('editando'));
-        diaEditando = null;
+    if (diaEditandoIndex !== null) {
+        document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = !isEditing);
+        document.querySelectorAll('.col-ativa').forEach(el => el.classList.remove('col-ativa'));
+        document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-editando'));
+        // NÃO remove a classe 'sugestao' para manter as cores
+        diaEditandoIndex = null;
         document.getElementById('btnSairDia').style.display = 'none';
-        document.getElementById('btnPreencher').style.display = 'none';
+        document.getElementById('btnPreencherVazios').style.display = 'none';
+        showToast('🔓 Edição geral restaurada');
     }
 }
 
+// ===== PREENCHER VAZIOS COM COR =====
 function preencherVazios() {
-    if (diaEditando === null) { toast('⚠️ Selecione um dia primeiro.'); return; }
+    if (diaEditandoIndex === null) {
+        showToast('⚠️ Selecione um dia primeiro.');
+        return;
+    }
     let count = 0;
-    document.querySelectorAll('#tbody tr:not(.group-row)').forEach(row => {
-        const inp = row.cells[diaEditando]?.querySelector('.input-hora');
+    const dia = diaEditandoIndex;
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const inp = row.cells[dia + 1]?.querySelector('.input-hora');
         if (!inp) return;
-        if (parseHora(inp.value) === 0) {
+        const valor = parseHora(inp.value);
+        if (valor === 0) {
             inp.classList.add('sugestao');
             count++;
         } else {
             inp.classList.remove('sugestao');
         }
     });
-    toast(`🎨 ${count} células vazias destacadas.`);
+    showToast(`🎨 ${count} células vazias destacadas em verde.`);
 }
 
-// ============================================================
-// ===== SENHA E MODO EDIÇÃO =====
-// ============================================================
+// ===== HABILITAR/DESABILITAR EDIÇÃO =====
 function setEditMode(enable) {
     isEditing = enable;
-    if (!enable) sairEdicaoDia();
-    document.querySelectorAll('#tbody .input-hora').forEach(inp => inp.disabled = true);
+    if (!enable) {
+        sairEdicaoDia();
+        document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = true);
+    } else {
+        document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = true);
+    }
     document.getElementById('btnBloquear').disabled = !enable;
     document.getElementById('btnDesbloquear').disabled = enable;
     document.getElementById('campoMes').disabled = !enable;
-    document.getElementById('editModeChip').textContent = enable ? '✏️ EDIÇÃO ATIVA' : '📖 VISUALIZAÇÃO';
-    document.getElementById('statusBadge').textContent = enable ? '🔓 EDIÇÃO' : '🔒 LEITURA';
-    document.getElementById('statusBadge').className = 'badge' + (enable ? ' badge-admin' : '');
-    toast(enable ? '✅ Edição ativada. Clique em um dia para editar.' : '🔒 Modo leitura');
+    document.getElementById('editModeChip').innerHTML = enable ? '✏️ EDIÇÃO ATIVA' : '📖 VISUALIZAÇÃO';
+    document.getElementById('statusBadge').innerHTML = enable ? '🔓 EDIÇÃO' : '🔒 LEITURA';
+    document.getElementById('statusBadge').classList.toggle('admin-mode', enable);
+    showToast(enable ? '✅ Modo edição ativado. Clique em um dia para editar.' : '🔒 Modo leitura ativado');
 }
 
-function modalSenha() {
-    return new Promise(resolve => {
-        const div = document.createElement('div');
-        div.className = 'modal';
-        div.innerHTML = `
-            <div class="modal-card">
+// ===== SENHA =====
+function exibirModalSenha() {
+    return new Promise((resolve) => {
+        const modalDiv = document.createElement('div');
+        modalDiv.className = 'modal-senha';
+        modalDiv.innerHTML = `
+            <div class="card-senha">
                 <h3>🔐 AUTENTICAÇÃO</h3>
-                <p>Digite a senha:</p>
-                <input type="password" id="senhaInput" placeholder="Senha">
-                <div class="btn-group">
-                    <button class="btn" id="modalConfirmar">Confirmar</button>
-                    <button class="btn" id="modalCancelar">Cancelar</button>
+                <p>Digite a senha para editar:</p>
+                <input type="password" id="senhaInput" placeholder="Senha" autocomplete="off">
+                <div class="botoes-senha">
+                    <button class="btn-modal" id="confirmarSenha">Confirmar</button>
+                    <button class="btn-modal" id="cancelarSenha">Cancelar</button>
                 </div>
             </div>`;
-        document.body.appendChild(div);
-        const inp = div.querySelector('#senhaInput');
-        const confirmar = () => { const s=inp.value; div.remove(); resolve(s); };
-        const cancelar = () => { div.remove(); resolve(null); };
-        div.querySelector('#modalConfirmar').onclick = confirmar;
-        div.querySelector('#modalCancelar').onclick = cancelar;
-        inp.focus();
-        inp.addEventListener('keypress', e => { if(e.key==='Enter') confirmar(); });
+        document.body.appendChild(modalDiv);
+        const inputSenha = modalDiv.querySelector('#senhaInput');
+        const confirmar = () => { const s=inputSenha.value; modalDiv.remove(); resolve(s); };
+        const cancelar = () => { modalDiv.remove(); resolve(null); };
+        modalDiv.querySelector('#confirmarSenha').onclick = confirmar;
+        modalDiv.querySelector('#cancelarSenha').onclick = cancelar;
+        inputSenha.focus();
+        inputSenha.addEventListener('keypress', e => { if(e.key==='Enter') confirmar(); });
     });
 }
 
-async function desbloquear() {
+async function login() {
     if (isEditing) return;
-    const s = await modalSenha();
-    if (s === SENHA_VALIDA || s === "Bispo") {
+    const senha = await exibirModalSenha();
+    if (senha === "Emerson" || senha === "Bispo") {
+        password = senha;
         setEditMode(true);
-    } else if (s !== null) {
-        toast('❌ Senha incorreta.');
+    } else if (senha !== null) {
+        showToast("❌ Senha incorreta.");
     }
 }
 
 function bloquear() {
     if (!isEditing) return;
     setEditMode(false);
+    password = "";
 }
 
-// ============================================================
-// ===== BOTÕES DE DIAS =====
-// ============================================================
+// ===== SALVAMENTO (COM TRAVA) =====
+async function salvarNoBackend() {
+    if (!isEditing || isSaving) return;
+    isSaving = true;
+    const syncSpan = document.getElementById('syncStatus');
+    syncSpan.innerHTML = '⏳ Salvando...';
+
+    try {
+        const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+        const month = getMesNumero(mesNome);
+        const logs = {};
+
+        document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+            const nome = getNomeFromRow(row);
+            logs[nome] = {};
+            row.querySelectorAll('.input-hora').forEach((inp, i) => {
+                const v = parseHora(inp.value);
+                if (v > 0) logs[nome][i+1] = v;
+            });
+        });
+
+        const resp = await fetch('/api/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password, logs, month, year: anoAtual })
+        });
+
+        const respData = await resp.json();
+        if (!resp.ok || !respData.success) {
+            throw new Error(respData.erro || `HTTP ${resp.status}`);
+        }
+
+        syncSpan.innerHTML = '✅ Salvo';
+        setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
+    } catch(e) {
+        console.error(e);
+        syncSpan.innerHTML = '❌ Erro ao salvar';
+        showToast(`❌ Erro ao salvar: ${e.message}`, 4000);
+    } finally {
+        isSaving = false;
+    }
+}
+
+// ===== CARREGAR DO BACKEND =====
+async function carregarDoBackend() {
+    const syncSpan = document.getElementById('syncStatus');
+    syncSpan.innerHTML = '⏳ Carregando...';
+    try {
+        const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+        const mesNum = getMesNumero(mesNome);
+        const url = `/api/data?month=${mesNum}&year=${anoAtual}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.pilots || !data.logs) throw new Error('Resposta incompleta');
+        LOGS = data.logs || {};
+        atualizarDias();
+
+        const thead = document.getElementById('tableHeader');
+        let headerHtml = `<tr><th>👤 PILOTO</th>`;
+        for (let i = 0; i < DIAS; i++) {
+            const diaNum = i + 1;
+            const dataObj = new Date(anoAtual, mesNum-1, diaNum);
+            const diaSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][dataObj.getDay()];
+            headerHtml += `<th>${String(diaNum).padStart(2,'00')} ${diaSemana}</th>`;
+        }
+        headerHtml += `<th>⭐ TOTAL</th></tr>`;
+        thead.innerHTML = headerHtml;
+
+        const tbody = document.getElementById('planilhaBody');
+        tbody.innerHTML = '';
+        const grupos = { "CESSNA 206/210":[], "CARAVAN":[], "COPILOTO":[] };
+        data.pilots.forEach(p => {
+            const grp = getGrupo(p.name);
+            if (grupos[grp]) grupos[grp].push(p);
+            else grupos["CESSNA 206/210"].push(p);
+        });
+
+        for (let grupo of ["CESSNA 206/210","CARAVAN","COPILOTO"]) {
+            const titleRow = document.createElement('tr');
+            titleRow.classList.add('group-title-row');
+            titleRow.innerHTML = `<td colspan="${DIAS+2}"><i class="fas fa-${grupo==="COPILOTO"?"headset":"plane"}"></i> ${grupo}</td>`;
+            tbody.appendChild(titleRow);
+            for (let p of grupos[grupo]) {
+                const row = document.createElement('tr');
+                row.classList.add('membro-row');
+                row.dataset.pilot = p.name;
+                const nomeCell = document.createElement('td');
+                nomeCell.textContent = p.name;
+                row.appendChild(nomeCell);
+                let total = 0;
+                for (let i = 0; i < DIAS; i++) {
+                    const td = document.createElement('td');
+                    const inp = document.createElement('input');
+                    inp.type = 'text';
+                    inp.inputMode = 'decimal';
+                    inp.classList.add('input-hora');
+                    inp.placeholder = '';
+
+                    const valor = (LOGS[p.name] && LOGS[p.name][i+1]) ? LOGS[p.name][i+1] : 0;
+                    if (valor > 0) {
+                        inp.value = formatarHora(valor);
+                        total += valor;
+                    } else {
+                        inp.value = '';
+                    }
+                    atualizarCorInput(inp);
+                    inp.disabled = true;
+
+                    inp.addEventListener('input', function() {
+                        if (!isEditing || diaEditandoIndex !== i) return;
+                        this.classList.remove('sugestao'); // Remove cor de sugestão ao digitar
+                        atualizarTotalLinha(row);
+                        recalcularTudo();
+                        clearTimeout(this._saveTimer);
+                        this._saveTimer = setTimeout(salvarNoBackend, 1000);
+                    });
+                    inp.addEventListener('blur', function() {
+                        if (!isEditing || diaEditandoIndex !== i) return;
+                        const v = parseHora(this.value);
+                        if (v > 0) {
+                            this.value = formatarHora(v);
+                            this.classList.remove('sugestao');
+                        } else {
+                            this.value = '';
+                        }
+                        atualizarTotalLinha(row);
+                        recalcularTudo();
+                        salvarNoBackend();
+                    });
+                    inp.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter' && isEditing && diaEditandoIndex === i) {
+                            e.preventDefault();
+                            this.blur();
+                        }
+                    });
+
+                    td.appendChild(inp);
+                    row.appendChild(td);
+                }
+                const totalCell = document.createElement('td');
+                totalCell.classList.add('total-cell');
+                totalCell.textContent = formatarHora(total);
+                row.appendChild(totalCell);
+                tbody.appendChild(row);
+            }
+        }
+        recalcularTudo();
+        criarBotoesDias();
+        setEditMode(false);
+        syncSpan.innerHTML = '✅ Carregado';
+        setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 2000);
+    } catch(e) {
+        console.error(e);
+        document.getElementById('syncStatus').innerHTML = '❌ Erro';
+        showToast(`❌ Erro ao carregar: ${e.message}`, 4000);
+    }
+}
+
+// ===== BOTÕES DE DIAS (sem iniciais) =====
 function criarBotoesDias() {
-    const container = document.getElementById('diasGrade');
+    const container = document.getElementById('botoesDias');
     container.innerHTML = '';
-    for (let i=1; i<=DIAS; i++) {
+    for (let i = 0; i < DIAS; i++) {
         const btn = document.createElement('button');
-        btn.className = 'dia-btn';
-        btn.innerHTML = `<span>${String(i).padStart(2,'0')}</span><span class="total-dia"></span>`;
-        btn.dataset.dia = i;
+        btn.classList.add('btn-dia');
+        const diaNum = i + 1;
+        btn.innerHTML = `<span class="dia-num">${String(diaNum).padStart(2,'00')}</span><span class="dia-total"></span>`;
         btn.onclick = () => {
-            document.querySelectorAll('.dia-btn').forEach(b => b.classList.remove('selecionado'));
-            btn.classList.add('selecionado');
-            if (isEditing) ativarEdicaoDia(i);
-            else toast('🔐 Desbloqueie a planilha para editar.');
+            document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-selecionado'));
+            btn.classList.add('dia-selecionado');
+            if (isEditing) {
+                ativarEdicaoDia(i);
+            } else {
+                showToast('🔐 Desbloqueie a planilha para editar um dia.');
+            }
         };
         container.appendChild(btn);
     }
     atualizarTotaisBotoesDias();
 }
 
-// ============================================================
 // ===== RANKING =====
-// ============================================================
 function mostrarRanking() {
-    const mes = document.getElementById('campoMes').value;
-    const dados = {};
-    document.querySelectorAll('#tbody tr:not(.group-row)').forEach(row => {
-        const nome = row.dataset.pilot;
+    const mesAtual = document.getElementById('campoMes').value.trim() || "Julho";
+    const pilotos = [];
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const nome = getNomeFromRow(row);
         let total = 0;
         row.querySelectorAll('.input-hora').forEach(inp => total += parseHora(inp.value));
         const grupo = getGrupo(nome);
-        if (!dados[grupo]) dados[grupo] = [];
-        dados[grupo].push({nome, total});
+        pilotos.push({ nome, total, grupo });
     });
-    let html = `<div class="modal-card" style="max-width:500px;width:95%;max-height:80vh;overflow-y:auto;text-align:left;"><h2 style="text-align:center;">📊 Ranking - ${mes}</h2>`;
-    const titulos = {"CESSNA 206/210":"🔹 CMTES CESSNA","CARAVAN":"🛩️ CMTES CARAVAN","COPILOTO":"📋 COPILOTOS CARAVAN"};
-    for (let g of ["CESSNA 206/210","CARAVAN","COPILOTO"]) {
-        if (!dados[g] || dados[g].length === 0) continue;
-        dados[g].sort((a,b) => b.total - a.total);
-        const max = Math.max(...dados[g].map(p => p.total), 0.1);
-        html += `<h3 style="border-bottom:1px solid #ccaa7a;">${titulos[g]}</h3><ul style="list-style:none;padding:0;">`;
-        dados[g].forEach(p => {
-            const perc = (p.total / max) * 100;
-            html += `<li style="padding:4px 0;border-bottom:1px solid #eee;">
-                <div style="display:flex;justify-content:space-between;"><span><strong>${p.nome}</strong></span><span>${p.total===0?'—':fmtHora(p.total)+'h'}</span></div>
-                <div style="background:#e0cfa8;border-radius:10px;height:8px;overflow:hidden;"><div style="background:#e67e22;height:100%;width:${perc}%;"></div></div>
+
+    const grupos = ["CESSNA 206/210", "CARAVAN", "COPILOTO"];
+    const dadosPorGrupo = {};
+    grupos.forEach(g => dadosPorGrupo[g] = []);
+    pilotos.forEach(p => {
+        if (dadosPorGrupo[p.grupo]) dadosPorGrupo[p.grupo].push(p);
+        else dadosPorGrupo["CESSNA 206/210"].push(p);
+    });
+    for (let g in dadosPorGrupo) dadosPorGrupo[g].sort((a,b) => b.total - a.total);
+
+    let html = `<div class="card-detalhe"><h2 style="text-align:center;">📊 Ranking de Horas — ${mesAtual}</h2>`;
+    const titulos = {
+        "CESSNA 206/210": "🔹 CMTES CESSNA 206/210",
+        "CARAVAN": "🛩️ CMTES CARAVAN 208",
+        "COPILOTO": "📋 COPILOTOS CARAVAN"
+    };
+    for (let grupo of grupos) {
+        const lista = dadosPorGrupo[grupo] || [];
+        if (lista.length === 0) continue;
+        const maxTotal = Math.max(...lista.map(p => p.total), 0.1);
+        html += `<h3 style="margin-top:16px;color:#3b2a1f;border-bottom:2px solid #ccaa7a;">${titulos[grupo]}</h3><ul style="margin:4px 0 12px 0;padding-left:0;list-style:none;">`;
+        lista.forEach(p => {
+            const perc = maxTotal > 0 ? (p.total / maxTotal) * 100 : 0;
+            html += `<li style="padding:6px 8px;border-bottom:1px solid #e8d5b0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <span><strong>${p.nome}</strong></span>
+                    <strong style="color:${p.total>0?'#2a8a2a':'#aaa'}">${p.total === 0 ? '—' : formatarHora(p.total)+'h'}</strong>
+                </div>
+                <div class="progress-bar-wrap"><div class="barra-fill" style="width:${perc}%"></div></div>
             </li>`;
         });
         html += `</ul>`;
     }
-    html += `<button class="btn" id="fecharRanking" style="display:block;margin:12px auto 0;">Fechar</button></div>`;
+    html += `<button class="btn-fechar" id="fecharRanking">Fechar</button></div>`;
     const modal = document.createElement('div');
-    modal.className = 'modal';
+    modal.className = 'modal-detalhe';
     modal.innerHTML = html;
     document.body.appendChild(modal);
     modal.querySelector('#fecharRanking').onclick = () => modal.remove();
     modal.onclick = e => { if (e.target === modal) modal.remove(); };
 }
 
-// ============================================================
-// ===== NAVEGAÇÃO MÊS =====
-// ============================================================
-function mudarMes(delta) {
-    if (!isEditing) { toast('⚠️ Desbloqueie para navegar.'); return; }
-    const at = document.getElementById('campoMes').value;
-    let n = numMes(at) + delta;
-    if (n < 1) { n = 12; anoAtual--; }
-    if (n > 12) { n = 1; anoAtual++; }
-    document.getElementById('campoMes').value = nomeMes(n);
-    renderizar();
+// ===== AJUDA =====
+function mostrarAjuda() {
+    const itens = [
+        { cor: '#fff1b5', texto: 'Célula com fundo amarelo → possui horas lançadas' },
+        { cor: '#d4edda', texto: 'Célula com fundo verde → sugerida pelo botão "Preencher vazios"' },
+        { cor: '#ffb366', texto: 'Célula com fundo laranja → 7º dia após 6 trabalhados (folga sugerida)' },
+        { cor: '#e7dbbc', texto: 'Total de horas por piloto (soma automática)' },
+        { cor: '#4c351e', texto: 'Número sobrescrito ao lado do nome → contagem de folgas (dias sem horas)' },
+    ];
+    let html = `<div class="card-ajuda"><h3 style="text-align:center;">📖 Legenda</h3>`;
+    itens.forEach(item => {
+        html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:${item.cor};border:1px solid #999;font-size:0.7rem;">&nbsp;</div><span>${item.texto}</span></div>`;
+    });
+    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">🔐 Desbloqueie com a senha, depois clique em um dia para editar apenas aquela coluna.<br>✅ Salvamento automático ao sair do campo.<br>🎨 Botão "Preencher vazios" destaca células vazias em verde.</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
+    const modal = document.createElement('div');
+    modal.className = 'modal-ajuda';
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    modal.querySelector('#fecharAjuda').onclick = () => modal.remove();
 }
 
-// ============================================================
-// ===== INICIALIZAÇÃO =====
-// ============================================================
-document.getElementById('btnDesbloquear').onclick = desbloquear;
-document.getElementById('btnBloquear').onclick = bloquear;
-document.getElementById('btnSairDia').onclick = () => { sairEdicaoDia(); recalcularTudo(); };
-document.getElementById('btnPreencher').onclick = preencherVazios;
-document.getElementById('btnRanking').onclick = mostrarRanking;
-document.getElementById('btnMesAnt').onclick = () => mudarMes(-1);
-document.getElementById('btnMesProx').onclick = () => mudarMes(1);
+// ===== NAVEGAÇÃO =====
+document.getElementById('btnMesAnterior').addEventListener('click', function() {
+    if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
+    sairEdicaoDia();
+    const mesAtual = document.getElementById('campoMes').value.trim();
+    const mesNum = getMesNumero(mesAtual);
+    let novoMesNum = mesNum - 1;
+    if (novoMesNum < 1) { novoMesNum = 12; anoAtual -= 1; }
+    document.getElementById('campoMes').value = getNomeMes(novoMesNum);
+    salvarMesNoStorage(getNomeMes(novoMesNum));
+    carregarDoBackend();
+});
+document.getElementById('btnMesProximo').addEventListener('click', function() {
+    if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
+    sairEdicaoDia();
+    const mesAtual = document.getElementById('campoMes').value.trim();
+    const mesNum = getMesNumero(mesAtual);
+    let novoMesNum = mesNum + 1;
+    if (novoMesNum > 12) { novoMesNum = 1; anoAtual += 1; }
+    document.getElementById('campoMes').value = getNomeMes(novoMesNum);
+    salvarMesNoStorage(getNomeMes(novoMesNum));
+    carregarDoBackend();
+});
 document.getElementById('campoMes').addEventListener('change', function() {
-    if (isEditing) renderizar();
+    if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
+    sairEdicaoDia();
+    salvarMesNoStorage(this.value);
+    carregarDoBackend();
 });
 
-const hoje = new Date();
-const mesAtual = nomeMes(hoje.getMonth()+1);
-document.getElementById('campoMes').value = mesAtual;
-anoAtual = hoje.getFullYear();
-renderizar();
+// ===== INICIALIZAÇÃO =====
+document.getElementById('btnDesbloquear').onclick = login;
+document.getElementById('btnBloquear').onclick = bloquear;
+document.getElementById('btnSairDia').onclick = sairEdicaoDia;
+document.getElementById('btnPreencherVazios').onclick = preencherVazios;
+document.getElementById('btnRanking').onclick = mostrarRanking;
+document.getElementById('btnAjuda').onclick = mostrarAjuda;
 
-// ===== FECHA MODAL AO CLICAR FORA =====
-document.addEventListener('click', function(e) {
-    document.querySelectorAll('.modal').forEach(m => { if (e.target === m) m.remove(); });
-});
+const mesSalvo = obterMesDoStorage();
+const dataAtual = new Date();
+const mesAtualNome = getNomeMes(dataAtual.getMonth() + 1);
+document.getElementById('campoMes').value = mesSalvo || mesAtualNome;
+anoAtual = dataAtual.getFullYear();
+carregarDoBackend();
+
+// ===== SOCKET.IO (opcional) =====
+let socket = null;
+function iniciarSocket() {
+    if (typeof io === 'undefined') return;
+    if (socket) return;
+    socket = io({ transports: ['polling'] });
+    socket.on('connect', () => {
+        document.getElementById('syncStatus').classList.add('rt-on');
+        document.getElementById('syncStatus').classList.remove('rt-off');
+        const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+        socket.emit('join_month', { month: getMesNumero(mesNome), year: anoAtual });
+    });
+    socket.on('disconnect', () => {
+        document.getElementById('syncStatus').classList.remove('rt-on');
+        document.getElementById('syncStatus').classList.add('rt-off');
+    });
+    socket.on('connect_error', () => {
+        document.getElementById('syncStatus').classList.remove('rt-on');
+        document.getElementById('syncStatus').classList.add('rt-off');
+    });
+    socket.on('logs_atualizados', (payload) => {
+        if (!payload) return;
+        const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+        const mesAtualNum = getMesNumero(mesNome);
+        if (Number(payload.month) !== Number(mesAtualNum) || Number(payload.year) !== Number(anoAtual)) return;
+        const { pilot, day, value } = payload;
+        if (!pilot || day === undefined) return;
+        document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+            if (getNomeFromRow(row) !== pilot) return;
+            const inp = row.cells[day]?.querySelector('.input-hora');
+            if (!inp) return;
+            const v = Number(value) || 0;
+            inp.value = v > 0 ? formatarHora(v) : '';
+            atualizarCorInput(inp);
+            atualizarTotalLinha(row);
+        });
+        recalcularTudo();
+    });
+}
+iniciarSocket();
 </script>
 </body>
-</html>
+            </html>
