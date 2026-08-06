@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import re
+import traceback
 from flask import Flask, request, jsonify, render_template, redirect
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
@@ -16,11 +17,11 @@ CORS(app)
 print("✅ Flask e CORS configurados")
 sys.stdout.flush()
 
-# SocketIO sem async_mode específico (usa o padrão que funciona com gunicorn)
 socketio = SocketIO(app, cors_allowed_origins="*")
 print("✅ SocketIO configurado")
 sys.stdout.flush()
 
+# === CONFIGURAÇÃO DO BANCO DE DADOS ===
 database_url = os.environ.get("DATABASE_URL")
 if not database_url:
     print("❌ DATABASE_URL não definida! Usando SQLite para teste.")
@@ -54,14 +55,16 @@ else:
         elif "sslmode" not in database_url:
             database_url += "&sslmode=require"
 
-    print(f"✅ DATABASE_URL configurada")
+    print("✅ DATABASE_URL configurada")
     sys.stdout.flush()
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
-    "pool_recycle": 300,
+    "pool_recycle": 280,
+    "pool_size": 10,
+    "max_overflow": 20,
     "connect_args": {
         "connect_timeout": 30,
         "keepalives": 1,
@@ -76,23 +79,9 @@ sys.stdout.flush()
 
 EDIT_PASSWORD = os.environ.get("EDIT_PASSWORD", "Emerson")
 EDIT_PASSWORD_2 = os.environ.get("EDIT_PASSWORD_2", "Bispo")
-CODIGOS_DISPONIVEIS = ["VO", "CQ", "RE", "SO", "EA", "TR", "TN"]
-CORES = {
-    "DM": "laranja",
-    "CM": "laranja_claro",
-    "VO": "azul",
-    "EA": "amarelo",
-    "FR": "verde",
-    "FS": "vermelho",
-    "FE": "verde_claro",
-    "RE": "rosa",
-    "SO": "branco",
-    "TR": "amarelo_escuro",
-    "TN": "azul_claro",
-    "CQ": "azul_medio"
-}
 PILOTOS_EXCLUIDOS = []
 
+# === MODELOS ===
 class Pilot(db.Model):
     __tablename__ = "pilot"
     id = db.Column(db.Integer, primary_key=True)
@@ -111,40 +100,18 @@ class FlightLog(db.Model):
     sugestoes = db.Column(db.JSON, nullable=False, default={})
     pilot = db.relationship("Pilot", backref=db.backref("flight_logs", lazy=True))
 
-class StatusOverride(db.Model):
-    __tablename__ = "status_override"
-    id = db.Column(db.Integer, primary_key=True)
-    pilot_id = db.Column(db.Integer, db.ForeignKey("pilot.id"), nullable=False)
-    day = db.Column(db.Integer, nullable=False)
-    month = db.Column(db.Integer, nullable=False)
-    year = db.Column(db.Integer, nullable=False)
-    status = db.Column(db.String(10), nullable=False)
-    pilot = db.relationship("Pilot", backref=db.backref("status_overrides", lazy=True))
-
 print("✅ Modelos definidos")
 sys.stdout.flush()
 
+# === FUNÇÕES AUXILIARES ===
 def getNomeMes(num):
     meses = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"]
     return meses[num-1] if 1 <= num <= 12 else "Julho"
 
-def normalizar_status(status):
-    if status is None or status == "" or status == " ":
-        return "VO"
-    return status
+def sala_do_mes(month, year):
+    return f"{int(month)}-{int(year)}"
 
-def obtener_escala_dinamica(pilot_obj, month, year):
-    return []
-
-def logs_por_piloto(logs):
-    result = {}
-    for log in logs:
-        if log.pilot.name not in result:
-            result[log.pilot.name] = {}
-        key = f"{log.month},{log.day}"
-        result[log.pilot.name][key] = log.hours
-    return result
-
+# === ROTAS E SOCKETS ===
 @app.route("/")
 def landing():
     return redirect("/planilha")
@@ -157,15 +124,15 @@ def planilha():
 def health():
     return "OK", 200
 
-def sala_do_mes(month, year):
-    return f"{int(month)}-{int(year)}"
-
 @socketio.on("join_month")
 def on_join_month(data):
     try:
         month = int(data.get("month"))
         year = int(data.get("year"))
-        join_room(sala_do_mes(month, year))
+        room = sala_do_mes(month, year)
+        join_room(room)
+        print(f"👤 Cliente entrou na sala: {room}")
+        sys.stdout.flush()
     except Exception as e:
         print(f"❌ Erro em join_month: {e}")
         sys.stdout.flush()
@@ -189,64 +156,26 @@ def get_data():
         pilots = Pilot.query.filter(Pilot.name.notin_(PILOTOS_EXCLUIDOS)).all()
         logs_current = FlightLog.query.filter_by(month=month, year=year).all()
 
-        prev_month = month - 1 if month > 1 else 12
-        prev_year = year if month > 1 else year - 1
-        logs_prev = FlightLog.query.filter_by(month=prev_month, year=prev_year).all()
-        next_month = month + 1 if month < 12 else 1
-        next_year = year if month < 12 else year + 1
-        logs_next = FlightLog.query.filter_by(month=next_month, year=next_year).all()
-
-        logs_current_map = logs_por_piloto(logs_current)
-        logs_prev_map = logs_por_piloto(logs_prev)
-        logs_next_map = logs_por_piloto(logs_next)
-
-        logs_adjacent = {}
-        for pilot_name in set(logs_current_map) | set(logs_prev_map) | set(logs_next_map):
-            logs_adjacent[pilot_name] = {}
-            for key, horas in logs_prev_map.get(pilot_name, {}).items():
-                logs_adjacent[pilot_name][key] = horas
-            for key, horas in logs_current_map.get(pilot_name, {}).items():
-                logs_adjacent[pilot_name][key] = horas
-            for key, horas in logs_next_map.get(pilot_name, {}).items():
-                logs_adjacent[pilot_name][key] = horas
-
         sugestoes_consolidadas = {}
         for log in logs_current:
             if log.sugestoes:
                 sugestoes_consolidadas.update(log.sugestoes)
 
-        overrides = StatusOverride.query.filter_by(month=month, year=year).all()
-        status_map = {}
-        for ov in overrides:
-            if ov.pilot and ov.pilot.name:
-                if ov.pilot.name not in status_map:
-                    status_map[ov.pilot.name] = {}
-                status_map[ov.pilot.name][ov.day] = ov.status
-
         result = {
             "pilots": [{"name": p.name, "group": p.group, "full_name": p.full_name or p.name} for p in pilots],
             "logs": {},
-            "logs_adjacent": logs_adjacent,
-            "escala": {},
-            "sugestoes": sugestoes_consolidadas,
-            "status": status_map
+            "sugestoes": sugestoes_consolidadas
         }
 
         for log in logs_current:
             if log.pilot.name not in result["logs"]:
                 result["logs"][log.pilot.name] = {}
-            result["logs"][log.pilot.name][log.day] = log.hours
+            result["logs"][log.pilot.name][log.day] = log.hours if log.hours is not None else 0.0
 
-        for p in pilots:
-            escala_pilot = obtener_escala_dinamica(p, month, year)
-            if escala_pilot:
-                result["escala"][p.name] = escala_pilot
-
-        print(f"📤 Retornando {len(sugestoes_consolidadas)} sugestões e {len(status_map)} status para {month}/{year}")
+        print(f"📤 Retornando {len(pilots)} pilotos e {len(logs_current)} logs para {month}/{year}")
         return jsonify(result)
     except Exception as e:
         print(f"❌ Erro em /api/data (GET): {e}")
-        import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
@@ -255,6 +184,9 @@ def save_data():
     print("🚨 POST /api/data CHAMADO!")
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "erro": "Dados não enviados"}), 400
+            
         if data.get("password") not in [EDIT_PASSWORD, EDIT_PASSWORD_2]:
             return jsonify({"success": False}), 401
 
@@ -266,198 +198,149 @@ def save_data():
         month = int(month)
         year = int(year)
 
+        logs_recebidos = data.get("logs", {})
         sugestoes_recebidas = data.get("sugestoes", {})
-        status_recebido = data.get("status", {})
-        mes_nome = getNomeMes(month)
+        
+        print(f"📥 RECEBIDO logs para {month}/{year}")
+        print(f"📥 Pilotos no payload: {list(logs_recebidos.keys())}")
 
-        print(f"📥 Salvando {len(sugestoes_recebidas)} sugestões e {len(status_recebido)} status para {month}/{year}")
+        logs_salvos = 0
 
-        eventos_para_emitir = []
-
-        # === Salvar horas e sugestões ===
-        for pilot_name, days in data.get("logs", {}).items():
+        # === SALVAR HORAS ===
+        for pilot_name, days in logs_recebidos.items():
             pilot = Pilot.query.filter_by(name=pilot_name).first()
             if not pilot:
-                print(f"⚠️ Piloto não encontrado: {pilot_name}")
+                print(f"⚠️ Piloto NÃO ENCONTRADO no banco: {pilot_name}")
                 continue
+                
+            print(f"✅ Processando piloto: {pilot_name} (ID: {pilot.id})")
+                
             for day_str, hours in days.items():
                 day = int(day_str)
-                key = f"{mes_nome}_{year}_{pilot_name}_{day}"
-
-                has_sugestao = key in sugestoes_recebidas and sugestoes_recebidas[key]
-
-                if hours is None or (isinstance(hours, str) and hours.strip() == ""):
-                    valor_horas = None
-                else:
-                    try:
-                        valor_horas = float(hours)
-                    except (ValueError, TypeError):
-                        valor_horas = None
-
-                log = FlightLog.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
-
-                if valor_horas is None and not has_sugestao:
+                
+                # Se hours for None ou vazio, remove o registro
+                if hours is None or hours == "":
+                    log = FlightLog.query.filter_by(
+                        pilot_id=pilot.id, 
+                        day=day, 
+                        month=month, 
+                        year=year
+                    ).first()
                     if log:
                         db.session.delete(log)
+                        print(f"🗑️ Removido: {pilot_name} dia {day}")
                     continue
-
+                
+                try:
+                    valor_horas = float(hours)
+                except (ValueError, TypeError):
+                    print(f"⚠️ Valor inválido: {pilot_name} dia {day} = {hours}")
+                    continue
+                
+                log = FlightLog.query.filter_by(
+                    pilot_id=pilot.id, 
+                    day=day, 
+                    month=month, 
+                    year=year
+                ).first()
+                
                 if log:
-                    if valor_horas is not None:
-                        log.hours = valor_horas
-
-                    if log.sugestoes is None:
-                        log.sugestoes = {}
-
-                    sug_dict = dict(log.sugestoes)
-                    if has_sugestao:
-                        sug_dict[key] = True
-                    else:
-                        sug_dict.pop(key, None)
-
-                    log.sugestoes = sug_dict
+                    log.hours = valor_horas
+                    print(f"✅ Atualizado: {pilot_name} dia {day} = {valor_horas}")
                 else:
-                    final_hours = valor_horas if valor_horas is not None else 0.0
-                    sug_dict = {key: True} if has_sugestao else {}
-
                     log = FlightLog(
                         pilot_id=pilot.id,
                         day=day,
                         month=month,
                         year=year,
-                        hours=final_hours,
-                        sugestoes=sug_dict
+                        hours=valor_horas
+                    )
+                    db.session.add(log)
+                    print(f"✅ Criado: {pilot_name} dia {day} = {valor_horas}")
+                
+                logs_salvos += 1
+
+        # === SALVAR SUGESTÕES ===
+        if sugestoes_recebidas:
+            mes_nome = getNomeMes(month)
+            print(f"📥 Processando {len(sugestoes_recebidas)} sugestões")
+            for key, value in sugestoes_recebidas.items():
+                if not value:
+                    continue
+                parts = key.split('_')
+                if len(parts) < 4:
+                    continue
+                mes_nome_key = parts[0]
+                ano_key = int(parts[1])
+                pilot_name_key = parts[2]
+                dia_key = int(parts[3])
+                
+                if ano_key != year or mes_nome_key != mes_nome:
+                    continue
+                    
+                pilot = Pilot.query.filter_by(name=pilot_name_key).first()
+                if not pilot:
+                    continue
+                    
+                log = FlightLog.query.filter_by(
+                    pilot_id=pilot.id, 
+                    day=dia_key, 
+                    month=month, 
+                    year=year
+                ).first()
+                
+                if log:
+                    if log.sugestoes is None:
+                        log.sugestoes = {}
+                    log.sugestoes[key] = True
+                else:
+                    log = FlightLog(
+                        pilot_id=pilot.id,
+                        day=dia_key,
+                        month=month,
+                        year=year,
+                        hours=0.0,
+                        sugestoes={key: True}
                     )
                     db.session.add(log)
 
-                eventos_para_emitir.append({
-                    "pilot": pilot_name,
-                    "day": day,
-                    "value": valor_horas if valor_horas is not None else 0.0,
-                    "month": month,
-                    "year": year
-                })
-
-        # === Salvar status / cores ===
-        for pilot_name, days in status_recebido.items():
-            pilot = Pilot.query.filter_by(name=pilot_name).first()
-            if not pilot:
-                continue
-            for day_str, status_val in days.items():
-                day = int(day_str)
-                override = StatusOverride.query.filter_by(
-                    pilot_id=pilot.id, day=day, month=month, year=year
-                ).first()
-
-                if status_val and str(status_val).strip():
-                    if override:
-                        override.status = status_val
-                    else:
-                        override = StatusOverride(
-                            pilot_id=pilot.id,
-                            day=day,
-                            month=month,
-                            year=year,
-                            status=status_val
-                        )
-                        db.session.add(override)
-                else:
-                    if override:
-                        db.session.delete(override)
-
         db.session.commit()
-        print(f"✅ Commit realizado com sucesso no Supabase para {month}/{year}")
+        print(f"✅ Commit realizado com sucesso! {logs_salvos} logs salvos para {month}/{year}")
 
-        for evento in eventos_para_emitir:
-            socketio.emit("logs_atualizados", evento, room=sala_do_mes(month, year))
+        # 📢 EMITE O AVISO EM TEMPO REAL
+        socketio.emit(
+            "data_updated", 
+            {"month": month, "year": year}, 
+            to=sala_do_mes(month, year)
+        )
 
-        return jsonify({"success": True})
+        return jsonify({"success": True, "logs_salvos": logs_salvos})
+        
     except Exception as e:
         print(f"❌ Erro em /api/data (POST): {e}")
-        import traceback
         traceback.print_exc()
         db.session.rollback()
         return jsonify({"success": False, "erro": str(e)}), 500
-
-@app.route("/api/available_commanders/<int:day_index>", methods=["GET"])
-def get_available_commanders(day_index):
-    try:
-        pilotos_com_horas = {"CESSNA 206/210": [], "CARAVAN": [], "COPILOTO": []}
-        pilots = Pilot.query.filter(Pilot.name.notin_(PILOTOS_EXCLUIDOS)).all()
-        month = request.args.get("month", default=datetime.now().month, type=int)
-        year = request.args.get("year", default=datetime.now().year, type=int)
-        dia_solicitado = day_index + 1
-        for pilot in pilots:
-            status = "VO"
-            cor = "azul"
-            if status in CODIGOS_DISPONIVEIS:
-                logs = FlightLog.query.filter_by(pilot_id=pilot.id, month=month, year=year).all()
-                horas_acumuladas = sum(log.hours for log in logs if log.day <= dia_solicitado)
-                pilotos_com_horas[pilot.group].append({
-                    "name": pilot.name,
-                    "status": status,
-                    "color": cor,
-                    "horas_totais": horas_acumuladas
-                })
-        available = {}
-        for grupo, lista_pilotos in pilotos_com_horas.items():
-            available[grupo] = sorted(lista_pilotos, key=lambda x: x["horas_totais"], reverse=True)
-        return jsonify(available)
-    except Exception as e:
-        print(f"❌ Erro em /api/available_commanders: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/update_status", methods=["POST"])
-def update_status():
-    try:
-        data = request.get_json()
-        pilot_name = data.get("pilot")
-        day = data.get("day")
-        new_status = data.get("status")
-        month = data.get("month")
-        year = data.get("year")
-        if not month or not year or not pilot_name or day is None or not new_status:
-            return jsonify({"success": False, "erro": "Dados incompletos"}), 400
-        month = int(month)
-        year = int(year)
-        pilot = Pilot.query.filter_by(name=pilot_name).first()
-        if not pilot:
-            return jsonify({"success": False, "erro": "Piloto não encontrado"}), 404
-        override = StatusOverride.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
-        if override:
-            override.status = new_status
-        else:
-            override = StatusOverride(pilot_id=pilot.id, day=day, month=month, year=year, status=new_status)
-            db.session.add(override)
-        db.session.commit()
-        socketio.emit("status_atualizado", {
-            "pilot": pilot_name, "day": day, "status": new_status,
-            "month": month, "year": year
-        }, room=sala_do_mes(month, year))
-        return jsonify({"success": True})
-    except Exception as e:
-        print(f"❌ Erro em /api/update_status: {e}")
-        return jsonify({"success": False, "erro": str(e)}), 500
-
-@app.route("/api/debug/reset-banco")
-def reset_banco():
-    try:
-        db.drop_all()
-        db.create_all()
-        povoar_dados_iniciais()
-        return "Banco reiniciado e dados da frota atualizados com sucesso!"
-    except Exception as e:
-        return f"Erro: {e}", 500
 
 @app.route("/api/debug/clear-month/<int:month>/<int:year>")
 def clear_month(month, year):
     try:
         apagados = FlightLog.query.filter_by(month=month, year=year).delete()
         db.session.commit()
-        return f"✅ {apagados} registro(s) de horas apagados para {month}/{year}. Pilotos e escala não foram alterados."
+        return f"✅ {apagados} registro(s) de horas apagados para {month}/{year}."
     except Exception as e:
         db.session.rollback()
         return f"Erro: {e}", 500
 
+@app.route("/api/debug/pilots")
+def debug_pilots():
+    try:
+        pilots = Pilot.query.all()
+        return jsonify([{"id": p.id, "name": p.name, "group": p.group} for p in pilots])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# === POPULAR BANCO INICIAL ===
 def povoar_dados_iniciais():
     grupos = {
         "Andre": "CESSNA 206/210", "Andrade": "CESSNA 206/210", "Luiz": "CESSNA 206/210",
@@ -474,31 +357,8 @@ def povoar_dados_iniciais():
         "Cauê": "COPILOTO", "Ruben": "COPILOTO", "Ernesto": "COPILOTO", "Daniela": "COPILOTO",
         "Thales": "COPILOTO", "Serafim": "COPILOTO", "Ronalldo": "COPILOTO", "Rodrigo": "COPILOTO"
     }
-    nomes_completos = {
-        "Adelio": "Adelio Costa Felinto", "Otto": "Albert Otto Azevedo",
-        "Andre": "Andre Luis Fernandes", "Cleiton": "Cleiton Taumaturgo",
-        "Cleverson": "Cleverson dos Santos", "Edson": "Edson Fonteles Portela",
-        "Frank": "Franker Wendell Dias", "Gabriel": "Gabriel de Oliveira",
-        "Costa": "Felipe Pereira Costa de Lima", "Hazafe": "Hazafe Pacheco de Alencar",
-        "Amarildo": "João Amarildo Reis dos Santos", "Igorh": "Igorh Coutinho Martins",
-        "Joao": "Joao Marcus Oliveira", "Dayvid": "Jose Deyvid Monteiro",
-        "Leandro": "Leandro Magalhães", "Lindomar": "Lindomar Bras Mota",
-        "Lucas": "Lucas Alves Pereira", "Luiz": "Luiz Andrade de Souza",
-        "Matias": "Matias Pires de Campos Junior", "Milton": "Milton Braga de Souza",
-        "Pascoal": "Pascoal Brito de Araujo", "Paulo": "Paulo Andre Silva",
-        "Perisson": "Perisson Parmigiani", "Renan": "Renan da Silva Nascimento",
-        "Roberto": "Roberto Adolfo Boesing", "Ronie": "Ronie Welter",
-        "Rui": "Rui de Almeida Vasconcelos", "Sergio": "Sergio Carneiro Rodrigues",
-        "Victor": "Victor Augusto Fernandes Monteiro da Silva", "Bento": "Vitor da Costa Bento",
-        "Wellber": "Wellber Nogueira Barros", "Andrade": "Wilken Andrade de Paulo",
-        "Yago": "Yago Bezerra Correia", "Cauê": "Caue Montanari",
-        "Daniela": "Daniela Goncalves Fabricio", "Ernesto": "Ernesto da Silva Kaster",
-        "Ruben": "Francisco Rubenicio Souza", "Rodrigo": "Rodrigo Silva Melo",
-        "Ronalldo": "Ronalldo Rodrigues Parreao Junior", "Thales": "Thales Araujo Penna",
-        "Serafim": "Tiago Carvalho Serafim"
-    }
     for nome, group in grupos.items():
-        piloto = Pilot(name=nome, full_name=nomes_completos.get(nome, nome), group=group)
+        piloto = Pilot(name=nome, full_name=nome, group=group)
         db.session.add(piloto)
     db.session.commit()
     print("✅ Pilotos populados")
