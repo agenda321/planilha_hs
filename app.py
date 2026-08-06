@@ -215,7 +215,6 @@ def get_data():
             if log.sugestoes:
                 sugestoes_consolidadas.update(log.sugestoes)
 
-        # Status / cores
         overrides = StatusOverride.query.filter_by(month=month, year=year).all()
         status_map = {}
         for ov in overrides:
@@ -262,14 +261,18 @@ def save_data():
         year = data.get("year")
         if not month or not year:
             return jsonify({"success": False, "erro": "Mês e ano são obrigatórios"}), 400
-        month = int(month); year = int(year)
+        month = int(month)
+        year = int(year)
         
         sugestoes_recebidas = data.get("sugestoes", {})
+        status_recebido = data.get("status", {})
         mes_nome = getNomeMes(month)
         
-        print(f"📥 Salvando {len(sugestoes_recebidas)} sugestões e dados para {month}/{year}")
+        print(f"📥 Salvando {len(sugestoes_recebidas)} sugestões e {len(status_recebido)} status para {month}/{year}")
         
         eventos_para_emitir = []
+        
+        # === Salvar horas e sugestões ===
         for pilot_name, days in data.get("logs", {}).items():
             pilot = Pilot.query.filter_by(name=pilot_name).first()
             if not pilot:
@@ -317,7 +320,34 @@ def save_data():
                     "pilot": pilot_name, "day": day, "value": valor_horas,
                     "month": month, "year": year
                 })
+        
+        # === Salvar status / cores ===
+        for pilot_name, days in status_recebido.items():
+            pilot = Pilot.query.filter_by(name=pilot_name).first()
+            if not pilot:
+                continue
+            for day_str, status_val in days.items():
+                day = int(day_str)
+                override = StatusOverride.query.filter_by(
+                    pilot_id=pilot.id, day=day, month=month, year=year
+                ).first()
                 
+                if status_val and str(status_val).strip():
+                    if override:
+                        override.status = status_val
+                    else:
+                        override = StatusOverride(
+                            pilot_id=pilot.id,
+                            day=day,
+                            month=month,
+                            year=year,
+                            status=status_val
+                        )
+                        db.session.add(override)
+                else:
+                    if override:
+                        db.session.delete(override)
+        
         db.session.commit()
         print(f"✅ Commit realizado com sucesso no Supabase para {month}/{year}")
         
@@ -371,7 +401,8 @@ def update_status():
         year = data.get("year")
         if not month or not year or not pilot_name or day is None or not new_status:
             return jsonify({"success": False, "erro": "Dados incompletos"}), 400
-        month = int(month); year = int(year)
+        month = int(month)
+        year = int(year)
         pilot = Pilot.query.filter_by(name=pilot_name).first()
         if not pilot:
             return jsonify({"success": False, "erro": "Piloto não encontrado"}), 404
@@ -421,7 +452,7 @@ def povoar_dados_iniciais():
         "Ronie": "CESSNA 206/210", "Sergio": "CESSNA 206/210", "Otto": "CESSNA 206/210",
         "Dany": "CESSNA 206/210", "Lucas": "CESSNA 206/210", "Roberto": "CESSNA 206/210",
         "Renan": "CESSNA 206/210", "Wellber": "CESSNA 206/210", "Bento": "CESSNA 206/210",
-        "Costa": "CESSNA 206/210", "Victor": "CESSNA 206/210", "Matias": "CESSNA 206/210",
+        "Costa": "CESSNA 206/210", "Victor": "CESSNA 206/210",
         "Cleiton": "CARAVAN", "Joao": "CARAVAN", "Pascoal": "CARAVAN",
         "Lindomar": "CARAVAN", "Perisson": "CARAVAN", "Rui": "CARAVAN", "Yago": "CARAVAN",
         "Cauê": "COPILOTO", "Ruben": "COPILOTO", "Ernesto": "COPILOTO", "Daniela": "COPILOTO",
@@ -437,7 +468,7 @@ def povoar_dados_iniciais():
         "Joao": "Joao Marcus Oliveira", "Dayvid": "Jose Deyvid Monteiro",
         "Leandro": "Leandro Magalhães", "Lindomar": "Lindomar Bras Mota",
         "Lucas": "Lucas Alves Pereira", "Luiz": "Luiz Andrade de Souza",
-        "Matias": "Matias Pires de Campos Junior", "Milton": "Milton Braga de Souza",
+        "Milton": "Milton Braga de Souza",
         "Pascoal": "Pascoal Brito de Araujo", "Paulo": "Paulo Andre Silva",
         "Perisson": "Perisson Parmigiani", "Renan": "Renan da Silva Nascimento",
         "Roberto": "Roberto Adolfo Boesing", "Ronie": "Ronie Welter",
