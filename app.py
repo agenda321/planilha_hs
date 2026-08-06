@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import re
+import traceback
 from flask import Flask, request, jsonify, render_template, redirect
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
@@ -20,6 +21,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 print("✅ SocketIO configurado")
 sys.stdout.flush()
 
+# === CONFIGURAÇÃO DO BANCO DE DADOS ===
 database_url = os.environ.get("DATABASE_URL")
 if not database_url:
     print("❌ DATABASE_URL não definida! Usando SQLite para teste.")
@@ -53,14 +55,16 @@ else:
         elif "sslmode" not in database_url:
             database_url += "&sslmode=require"
 
-    print(f"✅ DATABASE_URL configurada")
+    print("✅ DATABASE_URL configurada")
     sys.stdout.flush()
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
-    "pool_recycle": 300,
+    "pool_recycle": 280,
+    "pool_size": 10,
+    "max_overflow": 20,
     "connect_args": {
         "connect_timeout": 30,
         "keepalives": 1,
@@ -77,6 +81,7 @@ EDIT_PASSWORD = os.environ.get("EDIT_PASSWORD", "Emerson")
 EDIT_PASSWORD_2 = os.environ.get("EDIT_PASSWORD_2", "Bispo")
 PILOTOS_EXCLUIDOS = []
 
+# === MODELOS ===
 class Pilot(db.Model):
     __tablename__ = "pilot"
     id = db.Column(db.Integer, primary_key=True)
@@ -98,10 +103,15 @@ class FlightLog(db.Model):
 print("✅ Modelos definidos")
 sys.stdout.flush()
 
+# === FUNÇÕES AUXILIARES ===
 def getNomeMes(num):
     meses = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"]
     return meses[num-1] if 1 <= num <= 12 else "Julho"
 
+def sala_do_mes(month, year):
+    return f"{int(month)}-{int(year)}"
+
+# === ROTAS E SOCKETS ===
 @app.route("/")
 def landing():
     return redirect("/planilha")
@@ -114,15 +124,15 @@ def planilha():
 def health():
     return "OK", 200
 
-def sala_do_mes(month, year):
-    return f"{int(month)}-{int(year)}"
-
 @socketio.on("join_month")
 def on_join_month(data):
     try:
         month = int(data.get("month"))
         year = int(data.get("year"))
-        join_room(sala_do_mes(month, year))
+        room = sala_do_mes(month, year)
+        join_room(room)
+        print(f"👤 Cliente entrou na sala: {room}")
+        sys.stdout.flush()
     except Exception as e:
         print(f"❌ Erro em join_month: {e}")
         sys.stdout.flush()
@@ -161,13 +171,11 @@ def get_data():
             if log.pilot.name not in result["logs"]:
                 result["logs"][log.pilot.name] = {}
             result["logs"][log.pilot.name][log.day] = log.hours
-            print(f"📤 {log.pilot.name} dia {log.day} = {log.hours}")
 
         print(f"📤 Retornando dados para {month}/{year}")
         return jsonify(result)
     except Exception as e:
         print(f"❌ Erro em /api/data (GET): {e}")
-        import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
@@ -194,7 +202,6 @@ def save_data():
         sugestoes_recebidas = data.get("sugestoes", {})
         
         print(f"📥 RECEBIDO logs para {month}/{year}")
-        print(f"📥 Pilotos: {list(logs_recebidos.keys())}")
 
         # === SALVAR HORAS ===
         for pilot_name, days in logs_recebidos.items():
@@ -216,17 +223,14 @@ def save_data():
                     ).first()
                     if log:
                         db.session.delete(log)
-                        print(f"🗑️ Removido: {pilot_name} dia {day}")
                     continue
                 
-                # Converte para float
                 try:
                     valor_horas = float(hours)
                 except (ValueError, TypeError):
                     print(f"⚠️ Valor inválido: {pilot_name} dia {day} = {hours}")
                     continue
                 
-                # Busca ou cria o log
                 log = FlightLog.query.filter_by(
                     pilot_id=pilot.id, 
                     day=day, 
@@ -236,7 +240,6 @@ def save_data():
                 
                 if log:
                     log.hours = valor_horas
-                    print(f"✅ Atualizado: {pilot_name} dia {day} = {valor_horas}")
                 else:
                     log = FlightLog(
                         pilot_id=pilot.id,
@@ -246,11 +249,9 @@ def save_data():
                         hours=valor_horas
                     )
                     db.session.add(log)
-                    print(f"✅ Criado: {pilot_name} dia {day} = {valor_horas}")
 
         # === SALVAR SUGESTÕES ===
         if sugestoes_recebidas:
-            print(f"📥 Salvando {len(sugestoes_recebidas)} sugestões")
             mes_nome = getNomeMes(month)
             for key, value in sugestoes_recebidas.items():
                 if not value:
@@ -294,11 +295,18 @@ def save_data():
 
         db.session.commit()
         print(f"✅ Commit realizado com sucesso para {month}/{year}")
+
+        # 📢 EMITE O AVISO EM TEMPO REAL PARA TODOS CONECTADOS NO MESMO MÊS/ANO
+        socketio.emit(
+            "data_updated", 
+            {"month": month, "year": year}, 
+            to=sala_do_mes(month, year)
+        )
+
         return jsonify({"success": True})
         
     except Exception as e:
         print(f"❌ Erro em /api/data (POST): {e}")
-        import traceback
         traceback.print_exc()
         db.session.rollback()
         return jsonify({"success": False, "erro": str(e)}), 500
@@ -313,6 +321,7 @@ def clear_month(month, year):
         db.session.rollback()
         return f"Erro: {e}", 500
 
+# === POPULAR BANCO INICIAL ===
 def povoar_dados_iniciais():
     grupos = {
         "Andre": "CESSNA 206/210", "Andrade": "CESSNA 206/210", "Luiz": "CESSNA 206/210",
