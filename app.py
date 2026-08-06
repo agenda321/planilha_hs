@@ -188,47 +188,15 @@ def get_data():
         pilots = Pilot.query.filter(Pilot.name.notin_(PILOTOS_EXCLUIDOS)).all()
         logs_current = FlightLog.query.filter_by(month=month, year=year).all()
 
-        prev_month = month - 1 if month > 1 else 12
-        prev_year = year if month > 1 else year - 1
-        logs_prev = FlightLog.query.filter_by(month=prev_month, year=prev_year).all()
-        next_month = month + 1 if month < 12 else 1
-        next_year = year if month < 12 else year + 1
-        logs_next = FlightLog.query.filter_by(month=next_month, year=next_year).all()
-
-        logs_current_map = logs_por_piloto(logs_current)
-        logs_prev_map = logs_por_piloto(logs_prev)
-        logs_next_map = logs_por_piloto(logs_next)
-
-        logs_adjacent = {}
-        for pilot_name in set(logs_current_map) | set(logs_prev_map) | set(logs_next_map):
-            logs_adjacent[pilot_name] = {}
-            for key, horas in logs_prev_map.get(pilot_name, {}).items():
-                logs_adjacent[pilot_name][key] = horas
-            for key, horas in logs_current_map.get(pilot_name, {}).items():
-                logs_adjacent[pilot_name][key] = horas
-            for key, horas in logs_next_map.get(pilot_name, {}).items():
-                logs_adjacent[pilot_name][key] = horas
-
         sugestoes_consolidadas = {}
         for log in logs_current:
             if log.sugestoes:
                 sugestoes_consolidadas.update(log.sugestoes)
 
-        overrides = StatusOverride.query.filter_by(month=month, year=year).all()
-        status_map = {}
-        for ov in overrides:
-            if ov.pilot and ov.pilot.name:
-                if ov.pilot.name not in status_map:
-                    status_map[ov.pilot.name] = {}
-                status_map[ov.pilot.name][ov.day] = ov.status
-
         result = {
             "pilots": [{"name": p.name, "group": p.group, "full_name": p.full_name or p.name} for p in pilots],
             "logs": {},
-            "logs_adjacent": logs_adjacent,
-            "escala": {},
-            "sugestoes": sugestoes_consolidadas,
-            "status": status_map
+            "sugestoes": sugestoes_consolidadas
         }
 
         for log in logs_current:
@@ -249,6 +217,9 @@ def save_data():
     print("🚨 POST /api/data CHAMADO!")
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "erro": "Dados não enviados"}), 400
+            
         if data.get("password") not in [EDIT_PASSWORD, EDIT_PASSWORD_2]:
             return jsonify({"success": False}), 401
 
@@ -264,7 +235,8 @@ def save_data():
         mes_nome = getNomeMes(month)
 
         print(f"📥 RECEBIDO {len(sugestoes_recebidas)} SUGESTÕES")
-        print(f"📥 SUGESTÕES: {sugestoes_recebidas}")
+        if len(sugestoes_recebidas) > 0:
+            print(f"📥 SUGESTÕES: {list(sugestoes_recebidas.items())[:3]}")
 
         # === Salvar horas ===
         for pilot_name, days in data.get("logs", {}).items():
@@ -292,10 +264,11 @@ def save_data():
         for key, value in sugestoes_recebidas.items():
             if not value:
                 continue
-            # Extrai: mes_ano_piloto_dia
             parts = key.split('_')
             if len(parts) < 4:
+                print(f"⚠️ Chave inválida: {key}")
                 continue
+                
             mes_nome_key = parts[0]
             ano_key = int(parts[1])
             pilot_name_key = parts[2]
@@ -306,6 +279,7 @@ def save_data():
                 
             pilot = Pilot.query.filter_by(name=pilot_name_key).first()
             if not pilot:
+                print(f"⚠️ Piloto não encontrado: {pilot_name_key}")
                 continue
                 
             log = FlightLog.query.filter_by(pilot_id=pilot.id, day=dia_key, month=month, year=year).first()
@@ -315,7 +289,6 @@ def save_data():
                 log.sugestoes[key] = True
                 print(f"✅ SUGESTÃO SALVA: {key}")
             else:
-                # Se não existe log para este dia, cria um com sugestão
                 log = FlightLog(
                     pilot_id=pilot.id,
                     day=dia_key,
