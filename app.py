@@ -204,7 +204,7 @@ def get_data():
                 result["logs"][log.pilot.name] = {}
             result["logs"][log.pilot.name][log.day] = log.hours
 
-        print(f"📤 Retornando {len(sugestoes_consolidadas)} sugestões para {month}/{year}")
+        print(f"📤 Retornando logs para {month}/{year}")
         return jsonify(result)
     except Exception as e:
         print(f"❌ Erro em /api/data (GET): {e}")
@@ -231,78 +231,113 @@ def save_data():
         month = int(month)
         year = int(year)
 
-        sugestoes_recebidas = data.get("sugestoes", {})
-        mes_nome = getNomeMes(month)
+        print(f"📥 Salvando dados para {month}/{year}")
+        print(f"📥 Logs recebidos: {list(data.get('logs', {}).keys())}")
 
-        print(f"📥 RECEBIDO {len(sugestoes_recebidas)} SUGESTÕES")
-        if len(sugestoes_recebidas) > 0:
-            print(f"📥 SUGESTÕES: {list(sugestoes_recebidas.items())[:3]}")
-
-        # === Salvar horas ===
+        # === SALVAR HORAS ===
         for pilot_name, days in data.get("logs", {}).items():
             pilot = Pilot.query.filter_by(name=pilot_name).first()
             if not pilot:
+                print(f"⚠️ Piloto não encontrado: {pilot_name}")
                 continue
+                
             for day_str, hours in days.items():
                 day = int(day_str)
-                if hours is None:
-                    log = FlightLog.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
+                
+                # Verifica se hours é None ou vazio
+                if hours is None or hours == "":
+                    # Remove o registro se existir
+                    log = FlightLog.query.filter_by(
+                        pilot_id=pilot.id, 
+                        day=day, 
+                        month=month, 
+                        year=year
+                    ).first()
                     if log:
                         db.session.delete(log)
+                        print(f"🗑️ Removido log: {pilot_name} dia {day}")
                     continue
-                    
-                valor_horas = float(hours) if hours else 0.0
-                log = FlightLog.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
+                
+                # Converte para float
+                try:
+                    valor_horas = float(hours)
+                except (ValueError, TypeError):
+                    print(f"⚠️ Valor inválido para {pilot_name} dia {day}: {hours}")
+                    continue
+                
+                # Busca ou cria o log
+                log = FlightLog.query.filter_by(
+                    pilot_id=pilot.id, 
+                    day=day, 
+                    month=month, 
+                    year=year
+                ).first()
                 
                 if log:
                     log.hours = valor_horas
+                    print(f"✅ Atualizado: {pilot_name} dia {day} = {valor_horas}")
                 else:
-                    log = FlightLog(pilot_id=pilot.id, day=day, month=month, year=year, hours=valor_horas)
+                    log = FlightLog(
+                        pilot_id=pilot.id,
+                        day=day,
+                        month=month,
+                        year=year,
+                        hours=valor_horas
+                    )
                     db.session.add(log)
+                    print(f"✅ Criado: {pilot_name} dia {day} = {valor_horas}")
 
         # === SALVAR SUGESTÕES (CORES VERDES) ===
-        for key, value in sugestoes_recebidas.items():
-            if not value:
-                continue
-            parts = key.split('_')
-            if len(parts) < 4:
-                print(f"⚠️ Chave inválida: {key}")
-                continue
+        sugestoes_recebidas = data.get("sugestoes", {})
+        if sugestoes_recebidas:
+            print(f"📥 Salvando {len(sugestoes_recebidas)} sugestões")
+            for key, value in sugestoes_recebidas.items():
+                if not value:
+                    continue
+                parts = key.split('_')
+                if len(parts) < 4:
+                    continue
+                    
+                mes_nome_key = parts[0]
+                ano_key = int(parts[1])
+                pilot_name_key = parts[2]
+                dia_key = int(parts[3])
                 
-            mes_nome_key = parts[0]
-            ano_key = int(parts[1])
-            pilot_name_key = parts[2]
-            dia_key = int(parts[3])
-            
-            if ano_key != year or mes_nome_key != mes_nome:
-                continue
+                if ano_key != year or mes_nome_key != getNomeMes(month):
+                    continue
+                    
+                pilot = Pilot.query.filter_by(name=pilot_name_key).first()
+                if not pilot:
+                    continue
+                    
+                log = FlightLog.query.filter_by(
+                    pilot_id=pilot.id, 
+                    day=dia_key, 
+                    month=month, 
+                    year=year
+                ).first()
                 
-            pilot = Pilot.query.filter_by(name=pilot_name_key).first()
-            if not pilot:
-                print(f"⚠️ Piloto não encontrado: {pilot_name_key}")
-                continue
-                
-            log = FlightLog.query.filter_by(pilot_id=pilot.id, day=dia_key, month=month, year=year).first()
-            if log:
-                if log.sugestoes is None:
-                    log.sugestoes = {}
-                log.sugestoes[key] = True
-                print(f"✅ SUGESTÃO SALVA: {key}")
-            else:
-                log = FlightLog(
-                    pilot_id=pilot.id,
-                    day=dia_key,
-                    month=month,
-                    year=year,
-                    hours=0.0,
-                    sugestoes={key: True}
-                )
-                db.session.add(log)
-                print(f"✅ NOVO LOG COM SUGESTÃO: {key}")
+                if log:
+                    if log.sugestoes is None:
+                        log.sugestoes = {}
+                    log.sugestoes[key] = True
+                    print(f"✅ Sugestão salva: {key}")
+                else:
+                    log = FlightLog(
+                        pilot_id=pilot.id,
+                        day=dia_key,
+                        month=month,
+                        year=year,
+                        hours=0.0,
+                        sugestoes={key: True}
+                    )
+                    db.session.add(log)
+                    print(f"✅ Novo log com sugestão: {key}")
 
         db.session.commit()
         print(f"✅ Commit realizado com sucesso para {month}/{year}")
         return jsonify({"success": True})
+        
     except Exception as e:
         print(f"❌ Erro em /api/data (POST): {e}")
         import traceback
