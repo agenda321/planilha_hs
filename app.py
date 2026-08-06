@@ -274,11 +274,20 @@ def save_data():
         for pilot_name, days in data.get("logs", {}).items():
             pilot = Pilot.query.filter_by(name=pilot_name).first()
             if not pilot:
+                print(f"⚠️ Piloto não encontrado: {pilot_name}")
                 continue
             for day_str, hours in days.items():
                 day = int(day_str)
+                # Se hours for None, significa que deve remover o registro
+                if hours is None:
+                    log = FlightLog.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
+                    if log:
+                        db.session.delete(log)
+                    continue
+                    
                 valor_horas = float(hours) if hours and str(hours).strip() else 0.0
                 log = FlightLog.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
+                
                 if log:
                     log.hours = valor_horas
                     key = f"{mes_nome}_{year}_{pilot_name}_{day}"
@@ -295,13 +304,18 @@ def save_data():
                     if key in sugestoes_recebidas and sugestoes_recebidas[key]:
                         log.sugestoes = {key: True}
                     db.session.add(log)
+                    
                 eventos_para_emitir.append({
                     "pilot": pilot_name, "day": day, "value": valor_horas,
                     "month": month, "year": year
                 })
+                
         db.session.commit()
+        print(f"✅ Commit realizado com sucesso para {month}/{year}")
+        
         for evento in eventos_para_emitir:
             socketio.emit("logs_atualizados", evento, room=sala_do_mes(month, year))
+            
         return jsonify({"success": True})
     except Exception as e:
         print(f"❌ Erro em /api/data (POST): {e}")
