@@ -6,3 +6,4 @@ python-socketio==5.10.0
 psycopg2-binary==2.9.9
 SQLAlchemy==1.4.51
 Werkzeug==2.3.8
+gunicorn==21.2.0
