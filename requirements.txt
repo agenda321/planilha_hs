@@ -1,9 +1,9 @@
-Flask==2.3.3
+Flask==2.2.5
 Flask-SQLAlchemy==3.0.5
-Flask-CORS==4.0.1
-Flask-SocketIO==5.3.6
-python-socketio==5.10.0
-gunicorn==21.2.0
-psycopg2-binary==2.9.9
-SQLAlchemy==1.4.51
-Werkzeug==2.3.8
+Flask-CORS==4.0.0
+Flask-SocketIO==5.3.4
+python-socketio==5.9.0
+gunicorn==20.1.0
+psycopg2-binary==2.9.6
+SQLAlchemy==1.4.47
+Werkzeug==2.2.3
