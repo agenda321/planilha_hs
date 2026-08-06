@@ -215,12 +215,20 @@ def get_data():
             if log.sugestoes:
                 sugestoes_consolidadas.update(log.sugestoes)
 
+        overrides = StatusOverride.query.filter_by(month=month, year=year).all()
+        status_map = {}
+        for ov in overrides:
+            if ov.pilot.name not in status_map:
+                status_map[ov.pilot.name] = {}
+            status_map[ov.pilot.name][ov.day] = ov.status
+
         result = {
             "pilots": [{"name": p.name, "group": p.group, "full_name": p.full_name or p.name} for p in pilots],
             "logs": {},
             "logs_adjacent": logs_adjacent,
             "escala": {},
-            "sugestoes": sugestoes_consolidadas
+            "sugestoes": sugestoes_consolidadas,
+            "status": status_map
         }
 
         for log in logs_current:
@@ -233,7 +241,7 @@ def get_data():
             if escala_pilot:
                 result["escala"][p.name] = escala_pilot
 
-        print(f"📤 Retornando {len(sugestoes_consolidadas)} sugestões para {month}/{year}")
+        print(f"📤 Retornando {len(sugestoes_consolidadas)} sugestões e {len(status_map)} status para {month}/{year}")
         return jsonify(result)
     except Exception as e:
         print(f"❌ Erro em /api/data (GET): {e}")
