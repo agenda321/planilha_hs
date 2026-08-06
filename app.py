@@ -143,6 +143,7 @@ def get_data():
         pilots = Pilot.query.filter(Pilot.name.notin_(PILOTOS_EXCLUIDOS)).all()
         logs_current = FlightLog.query.filter_by(month=month, year=year).all()
 
+        # 🔧 CONSOLIDA TODAS AS SUGESTÕES SALVASS
         sugestoes_consolidadas = {}
         for log in logs_current:
             if log.sugestoes:
@@ -159,7 +160,7 @@ def get_data():
                 result["logs"][log.pilot.name] = {}
             result["logs"][log.pilot.name][log.day] = log.hours
 
-        print(f"📤 Retornando {len(sugestoes_consolidadas)} sugestões")
+        print(f"📤 Retornando {len(sugestoes_consolidadas)} sugestões salvas")
         return jsonify(result)
     except Exception as e:
         print(f"❌ Erro em GET: {e}")
@@ -191,8 +192,9 @@ def save_data():
         sugestoes_recebidas = data.get("sugestoes", {})
         mes_nome = getNomeMes(month)
         
-        print(f"📥 Salvando {len(sugestoes_recebidas)} sugestões")
+        print(f"📥 Salvando {len(sugestoes_recebidas)} sugestões para {mes_nome}/{year}")
         
+        # 🔧 SALVA VALORES E SUGESTÕES
         for pilot_name, days in data.get("logs", {}).items():
             pilot = Pilot.query.filter_by(name=pilot_name).first()
             if not pilot:
@@ -201,13 +203,18 @@ def save_data():
                 
             for day_str, hours in days.items():
                 day = int(day_str)
+                
+                # Se horas é None, deleta o registro
                 if hours is None:
                     log = FlightLog.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
                     if log:
                         db.session.delete(log)
                     continue
                     
-                valor_horas = float(hours) if hours else 0.0
+                # Converte horas para float (pode ser 0)
+                valor_horas = float(hours) if hours is not None else 0.0
+                
+                # Busca ou cria o registro
                 log = FlightLog.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
                 
                 if log:
@@ -216,16 +223,20 @@ def save_data():
                     log = FlightLog(pilot_id=pilot.id, day=day, month=month, year=year, hours=valor_horas)
                     db.session.add(log)
                     
-                # Salva sugestões
+                # 🔧 SALVA AS SUGESTÕES (cores verdes)
                 key = f"{mes_nome}_{year}_{pilot_name}_{day}"
                 if key in sugestoes_recebidas and sugestoes_recebidas[key]:
                     if not log.sugestoes:
                         log.sugestoes = {}
                     log.sugestoes[key] = True
                     print(f"✅ Sugestão salva: {key}")
+                else:
+                    # Remove a sugestão se não estiver mais marcada
+                    if log.sugestoes and key in log.sugestoes:
+                        del log.sugestoes[key]
                     
         db.session.commit()
-        print(f"✅ Commit realizado com sucesso")
+        print(f"✅ Commit realizado com sucesso - {len(sugestoes_recebidas)} sugestões consolidadas")
         return jsonify({"success": True})
         
     except Exception as e:
