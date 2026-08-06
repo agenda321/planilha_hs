@@ -897,7 +897,13 @@ async function salvarNoBackend() {
             sugestoes: sugestoes
         };
 
-        console.log('💾 Salvando payload:', payload);
+        console.log('💾 Salvando payload:', {
+            month,
+            year: anoAtual,
+            password: '***',
+            pilotos: Object.keys(logs).length,
+            sugestoes: Object.keys(sugestoes).length
+        });
 
         const resp = await fetch('/api/data', {
             method: 'POST',
@@ -905,9 +911,29 @@ async function salvarNoBackend() {
             body: JSON.stringify(payload)
         });
 
-        const respData = await resp.json();
-        if (!resp.ok || !respData.success) {
-            throw new Error(respData.erro || `HTTP ${resp.status}`);
+        console.log(`📤 Status HTTP: ${resp.status}`);
+        
+        // 🔧 Tratamento melhorado de erros
+        let respData;
+        const contentType = resp.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+            respData = await resp.json();
+        } else {
+            // Backend retornou HTML (erro 500)
+            const text = await resp.text();
+            console.error('❌ Backend retornou HTML ao invés de JSON:');
+            console.error(text.substring(0, 500));
+            throw new Error(`Erro no servidor (HTTP ${resp.status}). Verifique o console do servidor.`);
+        }
+        
+        if (!resp.ok) {
+            const erro = respData.erro || `HTTP ${resp.status}`;
+            throw new Error(erro);
+        }
+        
+        if (!respData.success) {
+            throw new Error(respData.erro || 'Erro desconhecido ao salvar');
         }
 
         localStorage.setItem('planilha_sugestoes', JSON.stringify(sugestoes));
@@ -916,9 +942,18 @@ async function salvarNoBackend() {
         setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
         showToast('✅ Dados salvos com sucesso!');
     } catch(e) {
-        console.error(e);
+        console.error('❌ ERRO AO SALVAR:', e);
         syncSpan.innerHTML = '❌ Erro ao salvar';
-        showToast(`❌ Erro ao salvar: ${e.message}`, 4000);
+        
+        // Mostra erro detalhado
+        let mensagem = e.message;
+        if (mensagem.includes('Unexpected token')) {
+            mensagem = 'Erro no servidor - retornou HTML ao invés de JSON. Verifique logs do servidor.';
+        } else if (mensagem.includes('Failed to fetch')) {
+            mensagem = 'Erro de conexão - servidor pode estar offline';
+        }
+        
+        showToast(`❌ ${mensagem}`, 5000);
     } finally {
         isSaving = false;
     }
@@ -1005,9 +1040,9 @@ async function carregarDoBackend() {
 
                     const valorSalvo = (LOGS[p.name] && LOGS[p.name][i+1] !== undefined) ? LOGS[p.name][i+1] : null;
                     
-                    // 🔧 CORREÇÃO 2: MOSTRAR "0" CORRETAMENTE (não deixar vazio)
-                    if (valorSalvo !== null) {
-                        inp.value = valorSalvo === 0 ? '0' : formatarHora(valorSalvo);
+                    // 🔧 MOSTRAR VAZIO POR PADRÃO (usuário controla quando adicionar "0")
+                    if (valorSalvo !== null && valorSalvo !== 0) {
+                        inp.value = formatarHora(valorSalvo);
                         if (valorSalvo > 0) total += valorSalvo;
                     } else {
                         inp.value = '';
@@ -1021,6 +1056,8 @@ async function carregarDoBackend() {
                         this.classList.remove('sugestao');
                         const key = obterChaveSugestao(this);
                         delete SUGESTOES_GLOBAIS[key];
+                        // 🔧 Atualiza cores enquanto digita
+                        atualizarCorInput(this, SUGESTOES_GLOBAIS);
                         atualizarTotalLinha(row);
                         recalcularTudo();
                         clearTimeout(this._saveTimer);
@@ -1030,15 +1067,23 @@ async function carregarDoBackend() {
                     inp.addEventListener('blur', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
                         let v = parseHora(this.value);
+                        
+                        // 🔧 Usuário controla quando adicionar "0"
                         if (v !== null && v < 0) {
+                            // Se digitou número negativo, converte para 0
                             v = 0;
                             this.value = '0';
-                        }
-                        if (v === null) {
+                        } else if (v === null) {
+                            // Campo vazio permanece vazio
                             this.value = '';
+                        } else if (v === 0) {
+                            // Se digitou "0", mantém "0" (usuário fez isso propositalmente)
+                            this.value = '0';
                         } else {
-                            this.value = v === 0 ? '0' : formatarHora(v);
+                            // Se digitou outro número, formata
+                            this.value = formatarHora(v);
                         }
+                        
                         atualizarCorInput(this, SUGESTOES_GLOBAIS);
                         atualizarTotalLinha(row);
                         recalcularTudo();
@@ -1268,10 +1313,11 @@ function iniciarSocket() {
             const inp = row.cells[day]?.querySelector('.input-hora');
             if (!inp) return;
             const v = Number(value);
-            if (isNaN(v)) {
+            if (isNaN(v) || v === 0) {
+                // 🔧 Se 0, mostrar vazio (usuário controla)
                 inp.value = '';
             } else {
-                inp.value = v === 0 ? '0' : formatarHora(v);
+                inp.value = formatarHora(v);
             }
             atualizarCorInput(inp, SUGESTOES_GLOBAIS);
             atualizarTotalLinha(row);
