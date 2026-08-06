@@ -1,15 +1,7 @@
 services:
   - type: web
-    name: planilha-horas-voare
-    runtime: python
+    name: planilha-hs
+    env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.10.0
-      - key: DATABASE_URL
-        value: postgresql://postgres:voarecoordenacao@db.imylqhbhkpxjqsgplqij.supabase.co:5432/postgres?sslmode=require
-      - key: EDIT_PASSWORD
-        value: Emerson
-      - key: EDIT_PASSWORD_2
-        value: Bispo
+    startCommand: gunicorn app:app
+    plan: free
