@@ -4,7 +4,6 @@ import time
 import re
 from flask import Flask, request, jsonify, render_template, redirect
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm.attributes import flag_modified
 from datetime import datetime
 from flask_cors import CORS
 from flask_socketio import SocketIO, join_room
@@ -17,8 +16,9 @@ CORS(app)
 print("✅ Flask e CORS configurados")
 sys.stdout.flush()
 
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
-print("✅ SocketIO configurado (async_mode=threading)")
+# SocketIO sem async_mode específico (usa o padrão que funciona com gunicorn)
+socketio = SocketIO(app, cors_allowed_origins="*")
+print("✅ SocketIO configurado")
 sys.stdout.flush()
 
 database_url = os.environ.get("DATABASE_URL")
@@ -108,7 +108,7 @@ class FlightLog(db.Model):
     month = db.Column(db.Integer, nullable=False)
     year = db.Column(db.Integer, nullable=False)
     hours = db.Column(db.Float, nullable=False, default=0.0)
-    sugestoes = db.Column(db.JSON, nullable=False, default=dict)
+    sugestoes = db.Column(db.JSON, nullable=False, default={})
     pilot = db.relationship("Pilot", backref=db.backref("flight_logs", lazy=True))
 
 class StatusOverride(db.Model):
@@ -257,21 +257,23 @@ def save_data():
         data = request.get_json()
         if data.get("password") not in [EDIT_PASSWORD, EDIT_PASSWORD_2]:
             return jsonify({"success": False}), 401
+
         month = data.get("month")
         year = data.get("year")
         if not month or not year:
             return jsonify({"success": False, "erro": "Mês e ano são obrigatórios"}), 400
+
         month = int(month)
         year = int(year)
-        
+
         sugestoes_recebidas = data.get("sugestoes", {})
         status_recebido = data.get("status", {})
         mes_nome = getNomeMes(month)
-        
+
         print(f"📥 Salvando {len(sugestoes_recebidas)} sugestões e {len(status_recebido)} status para {month}/{year}")
-        
+
         eventos_para_emitir = []
-        
+
         # === Salvar horas e sugestões ===
         for pilot_name, days in data.get("logs", {}).items():
             pilot = Pilot.query.filter_by(name=pilot_name).first()
@@ -281,46 +283,60 @@ def save_data():
             for day_str, hours in days.items():
                 day = int(day_str)
                 key = f"{mes_nome}_{year}_{pilot_name}_{day}"
+
                 has_sugestao = key in sugestoes_recebidas and sugestoes_recebidas[key]
-                
-                valor_horas = float(hours) if hours is not None and str(hours).strip() != "" else 0.0
+
+                if hours is None or (isinstance(hours, str) and hours.strip() == ""):
+                    valor_horas = None
+                else:
+                    try:
+                        valor_horas = float(hours)
+                    except (ValueError, TypeError):
+                        valor_horas = None
+
                 log = FlightLog.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
-                
-                if hours is None and not has_sugestao:
+
+                if valor_horas is None and not has_sugestao:
                     if log:
                         db.session.delete(log)
                     continue
-                
+
                 if log:
-                    log.hours = valor_horas
+                    if valor_horas is not None:
+                        log.hours = valor_horas
+
                     if log.sugestoes is None:
                         log.sugestoes = {}
-                    
+
                     sug_dict = dict(log.sugestoes)
                     if has_sugestao:
                         sug_dict[key] = True
                     else:
                         sug_dict.pop(key, None)
-                    
+
                     log.sugestoes = sug_dict
-                    flag_modified(log, "sugestoes")
                 else:
+                    final_hours = valor_horas if valor_horas is not None else 0.0
                     sug_dict = {key: True} if has_sugestao else {}
+
                     log = FlightLog(
-                        pilot_id=pilot.id, 
-                        day=day, 
-                        month=month, 
-                        year=year, 
-                        hours=valor_horas, 
+                        pilot_id=pilot.id,
+                        day=day,
+                        month=month,
+                        year=year,
+                        hours=final_hours,
                         sugestoes=sug_dict
                     )
                     db.session.add(log)
-                    
+
                 eventos_para_emitir.append({
-                    "pilot": pilot_name, "day": day, "value": valor_horas,
-                    "month": month, "year": year
+                    "pilot": pilot_name,
+                    "day": day,
+                    "value": valor_horas if valor_horas is not None else 0.0,
+                    "month": month,
+                    "year": year
                 })
-        
+
         # === Salvar status / cores ===
         for pilot_name, days in status_recebido.items():
             pilot = Pilot.query.filter_by(name=pilot_name).first()
@@ -331,7 +347,7 @@ def save_data():
                 override = StatusOverride.query.filter_by(
                     pilot_id=pilot.id, day=day, month=month, year=year
                 ).first()
-                
+
                 if status_val and str(status_val).strip():
                     if override:
                         override.status = status_val
@@ -347,13 +363,13 @@ def save_data():
                 else:
                     if override:
                         db.session.delete(override)
-        
+
         db.session.commit()
         print(f"✅ Commit realizado com sucesso no Supabase para {month}/{year}")
-        
+
         for evento in eventos_para_emitir:
             socketio.emit("logs_atualizados", evento, room=sala_do_mes(month, year))
-            
+
         return jsonify({"success": True})
     except Exception as e:
         print(f"❌ Erro em /api/data (POST): {e}")
@@ -452,7 +468,7 @@ def povoar_dados_iniciais():
         "Ronie": "CESSNA 206/210", "Sergio": "CESSNA 206/210", "Otto": "CESSNA 206/210",
         "Dany": "CESSNA 206/210", "Lucas": "CESSNA 206/210", "Roberto": "CESSNA 206/210",
         "Renan": "CESSNA 206/210", "Wellber": "CESSNA 206/210", "Bento": "CESSNA 206/210",
-        "Costa": "CESSNA 206/210", "Victor": "CESSNA 206/210",
+        "Costa": "CESSNA 206/210", "Victor": "CESSNA 206/210", "Matias": "CESSNA 206/210",
         "Cleiton": "CARAVAN", "Joao": "CARAVAN", "Pascoal": "CARAVAN",
         "Lindomar": "CARAVAN", "Perisson": "CARAVAN", "Rui": "CARAVAN", "Yago": "CARAVAN",
         "Cauê": "COPILOTO", "Ruben": "COPILOTO", "Ernesto": "COPILOTO", "Daniela": "COPILOTO",
@@ -468,7 +484,7 @@ def povoar_dados_iniciais():
         "Joao": "Joao Marcus Oliveira", "Dayvid": "Jose Deyvid Monteiro",
         "Leandro": "Leandro Magalhães", "Lindomar": "Lindomar Bras Mota",
         "Lucas": "Lucas Alves Pereira", "Luiz": "Luiz Andrade de Souza",
-        "Milton": "Milton Braga de Souza",
+        "Matias": "Matias Pires de Campos Junior", "Milton": "Milton Braga de Souza",
         "Pascoal": "Pascoal Brito de Araujo", "Paulo": "Paulo Andre Silva",
         "Perisson": "Perisson Parmigiani", "Renan": "Renan da Silva Nascimento",
         "Roberto": "Roberto Adolfo Boesing", "Ronie": "Ronie Welter",
