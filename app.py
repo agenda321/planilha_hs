@@ -250,15 +250,21 @@ def get_data():
         print(f"📤 Retornando {len(sugestoes_consolidadas)} sugestões para {month}/{year}")
         return jsonify(result)
     except Exception as e:
-        print(f"❌ Erro em /api/data: {e}")
+        print(f"❌ Erro em /api/data (GET): {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/data", methods=["POST"])
 def save_data():
     try:
         data = request.get_json()
+        print(f"📥 Recebido POST /api/data")
+        
         if data.get("password") not in [EDIT_PASSWORD, EDIT_PASSWORD_2]:
+            print("❌ Senha inválida")
             return jsonify({"success": False}), 401
+            
         month = data.get("month")
         year = data.get("year")
         if not month or not year:
@@ -270,6 +276,9 @@ def save_data():
         
         print(f"📥 Salvando {len(sugestoes_recebidas)} sugestões para {month}/{year}")
         
+        if len(sugestoes_recebidas) > 0:
+            print(f"📥 Primeiras sugestões: {list(sugestoes_recebidas.keys())[:3]}")
+        
         eventos_para_emitir = []
         for pilot_name, days in data.get("logs", {}).items():
             pilot = Pilot.query.filter_by(name=pilot_name).first()
@@ -278,11 +287,11 @@ def save_data():
                 continue
             for day_str, hours in days.items():
                 day = int(day_str)
-                # Se hours for None, significa que deve remover o registro
                 if hours is None:
                     log = FlightLog.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
                     if log:
                         db.session.delete(log)
+                        print(f"🗑️ Removido log de {pilot_name} dia {day}")
                     continue
                     
                 valor_horas = float(hours) if hours and str(hours).strip() else 0.0
@@ -290,19 +299,23 @@ def save_data():
                 
                 if log:
                     log.hours = valor_horas
+                    # Atualiza sugestões
                     key = f"{mes_nome}_{year}_{pilot_name}_{day}"
                     if not log.sugestoes:
                         log.sugestoes = {}
                     if key in sugestoes_recebidas and sugestoes_recebidas[key]:
                         log.sugestoes[key] = True
+                        print(f"✅ Sugestão salva para {pilot_name} dia {day}")
                     else:
                         if key in log.sugestoes:
                             del log.sugestoes[key]
+                            print(f"🗑️ Sugestão removida para {pilot_name} dia {day}")
                 else:
                     log = FlightLog(pilot_id=pilot.id, day=day, month=month, year=year, hours=valor_horas)
                     key = f"{mes_nome}_{year}_{pilot_name}_{day}"
                     if key in sugestoes_recebidas and sugestoes_recebidas[key]:
                         log.sugestoes = {key: True}
+                        print(f"✅ Nova sugestão criada para {pilot_name} dia {day}")
                     db.session.add(log)
                     
                 eventos_para_emitir.append({
@@ -319,6 +332,8 @@ def save_data():
         return jsonify({"success": True})
     except Exception as e:
         print(f"❌ Erro em /api/data (POST): {e}")
+        import traceback
+        traceback.print_exc()
         db.session.rollback()
         return jsonify({"success": False, "erro": str(e)}), 500
 
