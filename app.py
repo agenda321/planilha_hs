@@ -36,7 +36,7 @@ if not database_url:
 else:
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
-    print(f"✅ DATABASE_URL configurada")
+    print("✅ DATABASE_URL configurada")
     sys.stdout.flush()
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
@@ -69,7 +69,7 @@ class FlightLog(db.Model):
     month = db.Column(db.Integer, nullable=False)
     year = db.Column(db.Integer, nullable=False)
     hours = db.Column(db.Float, nullable=False, default=0.0)
-    sugestoes = db.Column(db.JSON, nullable=False, default={})
+    sugestoes = db.Column(db.JSON, nullable=False, default=dict)
     pilot = db.relationship("Pilot", backref=db.backref("flight_logs", lazy=True))
 
 class StatusOverride(db.Model):
@@ -92,15 +92,6 @@ def getNomeMes(num):
 
 def sala_do_mes(month, year):
     return f"{int(month)}-{int(year)}"
-
-def logs_por_piloto(logs):
-    result = {}
-    for log in logs:
-        if log.pilot.name not in result:
-            result[log.pilot.name] = {}
-        key = f"{log.month},{log.day}"
-        result[log.pilot.name][key] = log.hours
-    return result
 
 # ===== ROTAS =====
 @app.route("/")
@@ -151,7 +142,7 @@ def get_data():
         print(f"📊 Encontrados: {len(pilots)} pilotos, {len(logs_current)} registros de voo")
         sys.stdout.flush()
 
-        # 🔧 CONSOLIDA TODAS AS SUGESTÕES SALVAS
+        # Consolida todas as sugestões salvas
         sugestoes_consolidadas = {}
         try:
             for log in logs_current:
@@ -170,7 +161,6 @@ def get_data():
         for log in logs_current:
             if log.pilot.name not in result["logs"]:
                 result["logs"][log.pilot.name] = {}
-            # Garante que o valor é um número (float ou int)
             result["logs"][log.pilot.name][log.day] = float(log.hours) if log.hours is not None else None
 
         print(f"📤 Retornando {len(sugestoes_consolidadas)} sugestões")
@@ -190,24 +180,18 @@ def save_data():
     sys.stdout.flush()
     
     try:
-        # Valida se recebeu JSON
         data = request.get_json()
         if not data:
             print("❌ Dados vazios recebidos")
             sys.stdout.flush()
             return jsonify({"success": False, "erro": "Dados não enviados"}), 400
             
-        print(f"📥 Dados recebidos - Chaves: {list(data.keys())}")
-        sys.stdout.flush()
-        
-        # Valida senha
         password = data.get("password")
         if password not in [EDIT_PASSWORD, EDIT_PASSWORD_2]:
             print(f"❌ Senha inválida: {password}")
             sys.stdout.flush()
             return jsonify({"success": False, "erro": "Senha inválida"}), 401
             
-        # Valida mês e ano
         month = data.get("month")
         year = data.get("year")
         if not month or not year:
@@ -224,12 +208,10 @@ def save_data():
             return jsonify({"success": False, "erro": "Mês/ano inválidos"}), 400
         
         sugestoes_recebidas = data.get("sugestoes", {})
-        mes_nome = getNomeMes(month)
         
-        print(f"📥 Processando: {mes_nome}/{year} com {len(sugestoes_recebidas)} sugestões")
+        print(f"📥 Processando: Mês {month}/{year} com {len(sugestoes_recebidas)} sugestões")
         sys.stdout.flush()
         
-        # 🔧 SALVA VALORES E SUGESTÕES
         logs_dict = data.get("logs", {})
         if not isinstance(logs_dict, dict):
             print("❌ Logs não é um dicionário")
@@ -258,18 +240,33 @@ def save_data():
                         sys.stdout.flush()
                         continue
                     
-                    # Se horas é None, deleta o registro
+                    log = FlightLog.query.filter_by(
+                        pilot_id=pilot.id, day=day, month=month, year=year
+                    ).first()
+
+                    key = f"{month}_{year}_{pilot_name}_{day}"
+                    
+                    # Se horas é None
                     if hours is None:
-                        log = FlightLog.query.filter_by(
-                            pilot_id=pilot.id, day=day, month=month, year=year
-                        ).first()
                         if log:
-                            db.session.delete(log)
-                            print(f"🗑️ Deletado: {pilot_name} dia {day}")
-                            sys.stdout.flush()
+                            # Se não houver horas nem sugestão, deleta o registro
+                            if not (key in sugestoes_recebidas and sugestoes_recebidas[key]):
+                                db.session.delete(log)
+                                print(f"🗑️ Deletado: {pilot_name} dia {day}")
+                            else:
+                                log.hours = 0.0
+                                novas_sug = dict(log.sugestoes or {})
+                                novas_sug[key] = True
+                                log.sugestoes = novas_sug
+                        elif key in sugestoes_recebidas and sugestoes_recebidas[key]:
+                            log = FlightLog(
+                                pilot_id=pilot.id, day=day, month=month,
+                                year=year, hours=0.0, sugestoes={key: True}
+                            )
+                            db.session.add(log)
+                        sys.stdout.flush()
                         continue
                         
-                    # Converte horas para float (pode ser 0)
                     try:
                         valor_horas = float(hours) if hours is not None else 0.0
                     except (ValueError, TypeError):
@@ -277,39 +274,24 @@ def save_data():
                         sys.stdout.flush()
                         continue
                     
-                    # Busca ou cria o registro
-                    log = FlightLog.query.filter_by(
-                        pilot_id=pilot.id, day=day, month=month, year=year
-                    ).first()
-                    
-                    if log:
-                        log.hours = valor_horas
-                        print(f"✏️ Atualizado: {pilot_name} dia {day} = {valor_horas}h")
-                    else:
+                    if not log:
                         log = FlightLog(
                             pilot_id=pilot.id, day=day, month=month, 
                             year=year, hours=valor_horas
                         )
                         db.session.add(log)
-                        print(f"➕ Criado: {pilot_name} dia {day} = {valor_horas}h")
-                    
-                    sys.stdout.flush()
-                    
-                    # 🔧 SALVA AS SUGESTÕES (cores verdes)
-                    key = f"{mes_nome}_{year}_{pilot_name}_{day}"
-                    if key in sugestoes_recebidas and sugestoes_recebidas[key]:
-                        if not log.sugestoes:
-                            log.sugestoes = {}
-                        log.sugestoes[key] = True
-                        print(f"🎨 Sugestão: {key}")
                     else:
-                        # Remove a sugestão se não estiver mais marcada
-                        if log.sugestoes and key in log.sugestoes:
-                            del log.sugestoes[key]
-                            print(f"🗑️ Sugestão removida: {key}")
+                        log.hours = valor_horas
+
+                    # Atualiza JSON de sugestões (Cria cópia explícita para o SQLAlchemy detectar)
+                    novas_sugestoes = dict(log.sugestoes or {})
+                    if key in sugestoes_recebidas and sugestoes_recebidas[key]:
+                        novas_sugestoes[key] = True
+                    else:
+                        novas_sugestoes.pop(key, None)
                     
+                    log.sugestoes = novas_sugestoes
                     saved_count += 1
-                    sys.stdout.flush()
                     
             except Exception as pilot_error:
                 print(f"❌ Erro processando piloto {pilot_name}: {pilot_error}")
@@ -318,10 +300,9 @@ def save_data():
                 sys.stdout.flush()
                 continue
                     
-        # Commit no banco
         try:
             db.session.commit()
-            print(f"✅ Commit OK - {saved_count} registros salvos, {len(sugestoes_recebidas)} sugestões")
+            print(f"✅ Commit OK - {saved_count} registros processados")
             sys.stdout.flush()
             return jsonify({"success": True, "saved": saved_count})
         except Exception as commit_error:
@@ -336,14 +317,12 @@ def save_data():
         print(f"❌ ERRO GERAL em POST: {e}")
         import traceback
         traceback.print_exc()
-        sys.stdout.flush()
         try:
             db.session.rollback()
         except:
             pass
         return jsonify({"success": False, "erro": f"Erro no servidor: {str(e)}"}), 500
 
-# ===== INICIALIZAÇÃO =====
 with app.app_context():
     db.create_all()
     print("✅ Tabelas criadas/verificadas")
