@@ -1,353 +1,1331 @@
-import os
-import sys
-import time
-import re
-from flask import Flask, request, jsonify, render_template, redirect
-from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
-from flask_cors import CORS
-from flask_socketio import SocketIO, join_room
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Planilha de Horas | Registro de Voo</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1a237e">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Planilha Horas">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            margin: 0; min-height: 100vh;
+            background: radial-gradient(circle at 20% 30%, #b87c4f, #6e4a2e);
+            font-family: 'Segoe UI', 'Georgia', serif;
+            padding: 8px;
+            display: flex; justify-content: center; align-items: flex-start;
+        }
+        .skeuo-container {
+            max-width: 1400px; width: 100%;
+            background: #e2d6c0;
+            background-image: repeating-linear-gradient(45deg, #dacaa8 0px, #dacaa8 2px, #efe3c9 2px, #efe3c9 8px);
+            border-radius: 32px;
+            box-shadow: 0 25px 45px rgba(0,0,0,0.5), inset 0 1px 4px rgba(255,255,200,0.8);
+            padding: 10px;
+        }
+        .planilha-card {
+            background: #fcf7e8; border-radius: 24px;
+            box-shadow: inset 0 0 0 2px #fff9e8, inset 0 0 0 6px #d9c894, 0 12px 28px rgba(0,0,0,0.4);
+            padding: 6px 0 10px;
+        }
+        .cabecalho-skeuo {
+            padding: 8px 16px;
+            border-bottom: 2px solid #b28b5e;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            background: linear-gradient(to bottom, #fdf5e0, #f4e5ca);
+            border-radius: 20px 20px 12px 12px;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+        .title-area { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        h1 {
+            font-family: Georgia;
+            font-size: 1.2rem;
+            margin: 0;
+            color: #3b2a1f;
+            text-shadow: 2px 2px 0 #cdb086;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .nav-mes { display: flex; align-items: center; gap: 8px; }
+        .mes-editavel {
+            background: #f9f2e0; border: 2px solid #c9aa77; border-radius: 60px;
+            padding: 4px 12px; font-family: monospace; font-size: 0.85rem; font-weight: bold;
+            width: 110px; text-align: center;
+        }
+        .mes-editavel:disabled { background: #e9e0cf; opacity: 0.8; }
+        .badge-senha {
+            background: #b97f4b; border-radius: 60px; padding: 4px 12px;
+            font-size: 0.7rem; font-weight: bold; color: #fff1cf;
+            box-shadow: inset 0 1px 2px #ffdd99, 0 3px 6px rgba(0,0,0,0.2);
+        }
+        .badge-senha.admin-mode { background: #2e7d32; color: #fff; }
+        .top-actions {
+            padding: 0 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .button-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .btn-skeuo {
+            background: radial-gradient(circle at 30% 20%, #f3de9f, #cb9e6b);
+            border: none;
+            font-size: 0.75rem;
+            font-weight: bold;
+            padding: 7px 14px;
+            border-radius: 60px;
+            box-shadow: 0 4px 0 #7a4f2c;
+            cursor: pointer;
+            transition: 0.05s linear;
+            touch-action: manipulation;
+        }
+        .btn-skeuo:active { transform: translateY(3px); box-shadow: 0 1px 0 #7a4f2c; }
+        .btn-skeuo:disabled { opacity: 0.45; cursor: default; transform: none; }
+        .btn-skeuo.rank-btn { background: radial-gradient(circle at 30% 20%, #9fcbef, #6b8fcb); box-shadow: 0 4px 0 #2f4f7a; }
+        .btn-skeuo.rank-btn:active { box-shadow: 0 1px 0 #2f4f7a; }
+        .btn-skeuo.sair-btn { background: radial-gradient(circle at 30% 20%, #f3a49f, #cb6b6b); box-shadow: 0 4px 0 #7a2f2f; display: none; }
+        .btn-skeuo.sair-btn:active { box-shadow: 0 1px 0 #7a2f2f; }
+        .btn-skeuo.preencher-btn { background: radial-gradient(circle at 30% 20%, #a5d6a5, #6f9e6f); box-shadow: 0 4px 0 #2e6b2e; display: none; }
+        .btn-skeuo.preencher-btn:active { box-shadow: 0 1px 0 #2e6b2e; }
 
-print("🚀 Iniciando aplicação...")
-sys.stdout.flush()
-
-try:
-    from escala import ESCALA_MENSAL
-    print("✅ Escala carregada com sucesso")
-except Exception as e:
-    print(f"❌ Erro ao carregar escala: {e}")
-    ESCALA_MENSAL = {}
-sys.stdout.flush()
-
-app = Flask(__name__)
-CORS(app)
-print("✅ Flask e CORS configurados")
-sys.stdout.flush()
-
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
-print("✅ SocketIO configurado")
-sys.stdout.flush()
-
-# Configuração do banco de dados
-database_url = os.environ.get("DATABASE_URL")
-if not database_url:
-    print("❌ DATABASE_URL não definida! Usando SQLite.")
-    database_url = "sqlite:///test.db"
-else:
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
-    print(f"✅ DATABASE_URL configurada")
-    sys.stdout.flush()
-
-app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_pre_ping": True,
-    "pool_recycle": 300,
-}
-db = SQLAlchemy(app)
-print("✅ SQLAlchemy configurado")
-sys.stdout.flush()
-
-EDIT_PASSWORD = os.environ.get("EDIT_PASSWORD", "Emerson")
-EDIT_PASSWORD_2 = os.environ.get("EDIT_PASSWORD_2", "Bispo")
-PILOTOS_EXCLUIDOS = []
-
-# ===== MODELOS =====
-class Pilot(db.Model):
-    __tablename__ = "pilot"
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), unique=True, nullable=False)
-    full_name = db.Column(db.String(120), nullable=True)
-    group = db.Column(db.String(50), nullable=False)
-
-class FlightLog(db.Model):
-    __tablename__ = "flight_log"
-    id = db.Column(db.Integer, primary_key=True)
-    pilot_id = db.Column(db.Integer, db.ForeignKey("pilot.id"), nullable=False)
-    day = db.Column(db.Integer, nullable=False)
-    month = db.Column(db.Integer, nullable=False)
-    year = db.Column(db.Integer, nullable=False)
-    hours = db.Column(db.Float, nullable=False, default=0.0)
-    sugestoes = db.Column(db.JSON, nullable=False, default={})
-    pilot = db.relationship("Pilot", backref=db.backref("flight_logs", lazy=True))
-
-class StatusOverride(db.Model):
-    __tablename__ = "status_override"
-    id = db.Column(db.Integer, primary_key=True)
-    pilot_id = db.Column(db.Integer, db.ForeignKey("pilot.id"), nullable=False)
-    day = db.Column(db.Integer, nullable=False)
-    month = db.Column(db.Integer, nullable=False)
-    year = db.Column(db.Integer, nullable=False)
-    status = db.Column(db.String(10), nullable=False)
-    pilot = db.relationship("Pilot", backref=db.backref("status_overrides", lazy=True))
-
-print("✅ Modelos definidos")
-sys.stdout.flush()
-
-# ===== FUNÇÕES AUXILIARES =====
-def getNomeMes(num):
-    meses = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"]
-    return meses[num-1] if 1 <= num <= 12 else "Julho"
-
-def sala_do_mes(month, year):
-    return f"{int(month)}-{int(year)}"
-
-def logs_por_piloto(logs):
-    result = {}
-    for log in logs:
-        if log.pilot.name not in result:
-            result[log.pilot.name] = {}
-        key = f"{log.month},{log.day}"
-        result[log.pilot.name][key] = log.hours
-    return result
-
-# ===== ROTAS =====
-@app.route("/")
-def landing():
-    return redirect("/planilha")
-
-@app.route("/planilha")
-def planilha():
-    return render_template("planilha.html")
-
-@app.route("/health")
-def health():
-    return "OK", 200
-
-@socketio.on("join_month")
-def on_join_month(data):
-    try:
-        month = int(data.get("month"))
-        year = int(data.get("year"))
-        join_room(sala_do_mes(month, year))
-    except Exception as e:
-        print(f"❌ Erro em join_month: {e}")
-
-@app.route("/api/login", methods=["POST"])
-def login():
-    try:
-        data = request.get_json()
-        if data.get("password") in [EDIT_PASSWORD, EDIT_PASSWORD_2]:
-            return jsonify({"success": True})
-        return jsonify({"success": False}), 401
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-@app.route("/api/data", methods=["GET"])
-def get_data():
-    print("📤 GET /api/data chamado")
-    sys.stdout.flush()
-    try:
-        month = request.args.get("month", default=datetime.now().month, type=int)
-        year = request.args.get("year", default=datetime.now().year, type=int)
-        
-        print(f"📥 Buscando dados: {month}/{year}")
-        sys.stdout.flush()
-        
-        pilots = Pilot.query.filter(Pilot.name.notin_(PILOTOS_EXCLUIDOS)).all()
-        logs_current = FlightLog.query.filter_by(month=month, year=year).all()
-
-        print(f"📊 Encontrados: {len(pilots)} pilotos, {len(logs_current)} registros de voo")
-        sys.stdout.flush()
-
-        # 🔧 CONSOLIDA TODAS AS SUGESTÕES SALVAS
-        sugestoes_consolidadas = {}
-        try:
-            for log in logs_current:
-                if log.sugestoes and isinstance(log.sugestoes, dict):
-                    sugestoes_consolidadas.update(log.sugestoes)
-        except Exception as sug_error:
-            print(f"⚠️ Erro ao processar sugestões: {sug_error}")
-            sys.stdout.flush()
-
-        result = {
-            "pilots": [{"name": p.name, "group": p.group, "full_name": p.full_name or p.name} for p in pilots],
-            "logs": {},
-            "sugestoes": sugestoes_consolidadas
+        .info-bar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding: 0 12px 6px;
+            gap: 8px;
+        }
+        .sync-status {
+            font-size: 0.65rem;
+            background: #4c351e;
+            padding: 3px 10px;
+            border-radius: 60px;
+            color: #ffe1a0;
+        }
+        .sync-status.rt-on { background: #1b5e20; }
+        .sync-status.rt-off { background: #6d4c1f; }
+        .btn-ajuda {
+            background: #7a5230;
+            color: #ffe1a0;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 0.85rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            touch-action: manipulation;
         }
 
-        for log in logs_current:
-            if log.pilot.name not in result["logs"]:
-                result["logs"][log.pilot.name] = {}
-            # Garante que o valor é um número (float ou int)
-            result["logs"][log.pilot.name][log.day] = float(log.hours) if log.hours is not None else None
+        .dias-botoes {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            margin: 0 8px 8px;
+            padding: 8px;
+            background: #ddcdac;
+            border-radius: 28px;
+            box-shadow: inset 0 0 0 2px #fef1cf, inset 0 0 0 4px #c2a570;
+        }
+        .btn-dia {
+            background: radial-gradient(circle at 30% 20%, #f0dc9f, #c29a5e);
+            border: none;
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 7px 0;
+            border-radius: 50px;
+            box-shadow: 0 3px 0 #6b4828;
+            cursor: pointer;
+            transition: 0.05s linear;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1px;
+            line-height: 1.1;
+            width: 100%;
+            min-width: 0;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .btn-dia .dia-num { font-size: 0.72rem; font-weight: bold; }
+        .btn-dia .dia-total { font-size: 0.5rem; color: #5a3a10; white-space: nowrap; }
+        .btn-dia.tem-dados .dia-total { color: #a05000; font-weight: bold; }
+        .btn-dia.dia-selecionado {
+            background: radial-gradient(circle at 30% 20%, #ffe066, #e6a800);
+            box-shadow: 0 3px 0 #7a5200, 0 0 8px 2px rgba(230,167,0,0.5);
+            color: #3b2a00;
+        }
+        .btn-dia.dia-editando {
+            background: radial-gradient(circle at 30% 20%, #a5d6a5, #6f9e6f);
+            box-shadow: 0 3px 0 #3e6b3e;
+        }
 
-        print(f"📤 Retornando {len(sugestoes_consolidadas)} sugestões")
-        sys.stdout.flush()
-        return jsonify(result)
-        
-    except Exception as e:
-        print(f"❌ Erro em GET: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.stdout.flush()
-        return jsonify({"error": str(e), "success": False}), 500
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 0 8px;
+            background: #ddcdac;
+            padding: 6px;
+            border-radius: 18px;
+            max-height: 55vh;
+            -webkit-overflow-scrolling: touch;
+        }
+        .planilha {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff6e8;
+            min-width: 900px;
+        }
+        .planilha th, .planilha td {
+            border: 1px solid #ebddbb;
+            padding: 6px 3px;
+            text-align: center;
+        }
+        .planilha th {
+            background: linear-gradient(to bottom, #b88954, #7e5937);
+            color: #fff4e0;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-size: 0.75rem;
+        }
+        .planilha td:first-child {
+            background: #f7efdc;
+            font-weight: bold;
+            text-align: left;
+            position: sticky;
+            left: 0;
+            z-index: 5;
+            border-right: 2px solid #dbb87a;
+            font-size: 0.8rem;
+            padding-left: 6px;
+        }
+        .planilha th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 15;
+            background: #9c7a50;
+        }
+        .planilha th.col-ativa { background: linear-gradient(to bottom, #e6a800, #a07000) !important; }
+        .planilha td.col-ativa { background: #fffacc !important; }
 
-@app.route("/api/data", methods=["POST"])
-def save_data():
-    print("🚨 POST /api/data CHAMADO!")
-    sys.stdout.flush()
-    
-    try:
-        # Valida se recebeu JSON
-        data = request.get_json()
-        if not data:
-            print("❌ Dados vazios recebidos")
-            sys.stdout.flush()
-            return jsonify({"success": False, "erro": "Dados não enviados"}), 400
+        .input-hora {
+            width: 58px;
+            padding: 4px;
+            text-align: center;
+            font-family: monospace;
+            font-size: 0.78rem;
+            background: #f9f2e0;
+            border: 2px solid #c9aa77;
+            border-radius: 12px;
+            transition: all 0.15s;
+            touch-action: manipulation;
+        }
+        .input-hora::placeholder { color: #bbb; font-size: 0.65rem; }
+        
+        /* Estados visuais */
+        .input-hora.has-value { 
+            background: #fff1b5; 
+            border-color: #e4b149; 
+            box-shadow: 0 0 5px gold; 
+        }
+        .input-hora.is-zero { 
+            background: #e0e0e0 !important; 
+            border-color: #999 !important; 
+            color: #555;
+            font-weight: bold;
+        }
+        .input-hora.sugestao { 
+            background: #d4edda !important; 
+            border-color: #6c9e6c !important; 
+            box-shadow: 0 0 6px #6c9e6c; 
+        }
+        .input-hora.streak-day { background: #ffb366; border-color: #e67300; box-shadow: 0 0 8px #e67300; }
+        
+        .input-hora:disabled, .input-hora[readonly] {
+            background: #f0ebe0;
+            cursor: not-allowed;
+            opacity: 0.85;
+        }
+        .input-hora:focus:not(:disabled) {
+            outline: 2px solid #ffaa00;
+            box-shadow: 0 0 0 4px rgba(255,170,0,0.3);
+            background: #fff8e0 !important;
+        }
+        .total-cell { background: #e7dbbc; font-weight: bold; font-size: 0.8rem; }
+        .group-title-row td {
+            background: linear-gradient(135deg, #ccaa7a, #b1834d);
+            font-weight: bold;
+            font-size: 1rem;
+            text-align: center;
+            padding: 6px;
+        }
+
+        .info-footer {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin: 6px 12px 0;
+            gap: 8px;
+        }
+        .status-chip {
+            background: #4c351e;
+            border-radius: 60px;
+            padding: 4px 12px;
+            font-size: 0.65rem;
+            font-weight: bold;
+            color: #ffe1a0;
+            box-shadow: inset 0 1px 3px #ffdf9a, 0 2px 4px black;
+        }
+
+        /* Modais */
+        .modal-senha, .modal-detalhe, .modal-ajuda {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        .card-senha, .card-detalhe, .card-ajuda {
+            background: #fdf5e6;
+            border-radius: 32px;
+            width: 92%;
+            max-width: 500px;
+            padding: 20px;
+            box-shadow: 0 20px 35px black;
+            max-height: 88vh;
+            overflow-y: auto;
+        }
+        .card-senha { text-align: center; max-width: 320px; }
+        .card-senha input {
+            width: 100%;
+            padding: 10px;
+            margin: 16px 0;
+            border-radius: 60px;
+            border: 2px solid #b67e45;
+            background: #fff2e0;
+            font-size: 1rem;
+            text-align: center;
+        }
+        .botoes-senha { display: flex; gap: 12px; justify-content: center; }
+        .btn-modal {
+            background: #a07143;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 60px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            touch-action: manipulation;
+        }
+        .btn-fechar {
+            background: #b07842;
+            border: none;
+            padding: 10px 28px;
+            border-radius: 60px;
+            color: white;
+            margin-top: 16px;
+            cursor: pointer;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+            touch-action: manipulation;
+        }
+        .toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #3b2a1f;
+            color: #ffe1a0;
+            padding: 8px 20px;
+            border-radius: 60px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            white-space: nowrap;
+            max-width: 90vw;
+        }
+        .toast.show { opacity: 1; }
+
+        .folga-badge {
+            font-size: 0.65rem;
+            margin-left: 4px;
+            font-weight: bold;
+        }
+        .folga-badge.normal { color: #3b2a1f; }
+        .folga-badge.igual8 { color: #e6a800; font-weight: bold; }
+        .folga-badge.acima8 { color: #cc0000; font-weight: bold; }
+
+        .progress-bar-wrap {
+            background: #e0cfa8;
+            border-radius: 10px;
+            height: 12px;
+            width: 100%;
+            overflow: hidden;
+        }
+        .barra-fill {
+            background: #e67e22;
+            height: 100%;
+            border-radius: 10px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .card-ajuda { max-width: 360px; }
+        .ajuda-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0cfa8;
+            font-size: 0.85rem;
+        }
+        .ajuda-cor {
+            width: 36px;
+            height: 24px;
+            border-radius: 8px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+
+        @media (max-width: 600px) {
+            .cabecalho-skeuo { flex-direction: column; align-items: stretch; }
+            .title-area { justify-content: center; }
+            .top-actions { flex-direction: column; align-items: stretch; }
+            .button-group { justify-content: center; }
+            .btn-skeuo { font-size: 0.7rem; padding: 6px 10px; }
+            .input-hora { width: 44px; font-size: 0.7rem; }
+            .planilha th, .planilha td { padding: 4px 2px; }
+        }
+    </style>
+</head>
+<body>
+<div class="skeuo-container">
+    <div class="planilha-card">
+
+        <!-- Cabeçalho -->
+        <div class="cabecalho-skeuo">
+            <div class="title-area">
+                <h1><i class="fas fa-plane-up"></i> REGISTRO DE HORAS</h1>
+                <div class="nav-mes">
+                    <button class="btn-skeuo" id="btnMesAnterior">◀</button>
+                    <input type="text" id="campoMes" class="mes-editavel" value="Agosto" disabled>
+                    <button class="btn-skeuo" id="btnMesProximo">▶</button>
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <span class="badge-senha" id="statusBadge">🔒 LEITURA</span>
+            </div>
+        </div>
+
+        <!-- Ações -->
+        <div class="top-actions">
+            <div class="button-group">
+                <button class="btn-skeuo" id="btnDesbloquear">🔐 DESBLOQUEAR</button>
+                <button class="btn-skeuo" id="btnBloquear" disabled>🔒 BLOQUEAR</button>
+                <button class="btn-skeuo sair-btn" id="btnSairDia" style="display:none;">✖ SAIR</button>
+                <button class="btn-skeuo preencher-btn" id="btnPreencherVazios" style="display:none;">🎨 PREENCHER VAZIOS</button>
+                <button class="btn-skeuo rank-btn" id="btnRanking">📊 RANKING</button>
+            </div>
+            <div class="info-bar" style="padding:0;">
+                <span class="sync-status" id="syncStatus">💾 Carregando...</span>
+                <button class="btn-ajuda" id="btnAjuda" title="Legenda">?</button>
+            </div>
+        </div>
+
+        <!-- Dias (botões rápidos) -->
+        <div class="dias-botoes" id="botoesDias"></div>
+
+        <!-- Tabela -->
+        <div class="table-wrapper">
+            <table class="planilha" id="tabelaHoras">
+                <thead id="tableHeader"></thead>
+                <tbody id="planilhaBody"></tbody>
+                <tfoot id="tfootTotal"></tfoot>
+            </table>
+        </div>
+
+        <div class="info-footer">
+            <div class="status-chip" id="editModeChip">📖 VISUALIZAÇÃO</div>
+        </div>
+
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+// ===== TOAST =====
+function showToast(msg, duracao = 2500) {
+    let toast = document.getElementById('toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast';
+        toast.className = 'toast';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.remove('show'), duracao);
+}
+
+// ===== PERSISTÊNCIA DO MÊS E ANO =====
+const MES_STORAGE_KEY = 'planilha_mes_ano';
+function salvarMesAno(mes, ano) {
+    localStorage.setItem(MES_STORAGE_KEY, JSON.stringify({ mes, ano }));
+}
+function obterMesAno() {
+    const data = localStorage.getItem(MES_STORAGE_KEY);
+    return data ? JSON.parse(data) : null;
+}
+
+let DIAS = 31;
+let anoAtual = new Date().getFullYear();
+let isEditing = false;
+let password = "";
+let diaEditandoIndex = null;
+let isSaving = false;
+
+const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+function getMesNumero(nomeMes) {
+    const mapa = { "janeiro":1, "fevereiro":2, "março":3, "abril":4, "maio":5, "junho":6, "julho":7, "agosto":8, "setembro":9, "outubro":10, "novembro":11, "dezembro":12 };
+    return mapa[nomeMes.toLowerCase()] || new Date().getMonth() + 1;
+}
+function getNomeMes(num) { return MESES[num-1] || "Julho"; }
+
+function diasNoMes(mesNum, ano) {
+    return new Date(ano, mesNum, 0).getDate();
+}
+function atualizarDias() {
+    const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+    const mesNum = getMesNumero(mesNome);
+    DIAS = diasNoMes(mesNum, anoAtual);
+    return DIAS;
+}
+
+function parseHora(v) {
+    if (v === '' || v === null || v === undefined) return null;
+    let n = parseFloat(String(v).trim().replace(',','.'));
+    return isNaN(n) ? null : n;
+}
+function formatarHora(n) { return n.toFixed(1).replace('.',','); }
+
+// ===== GRUPOS =====
+const GRUPOS_PILOTO = {
+    "CARAVAN": ["Cleiton","Joao","Pascoal","Lindomar","Perisson","Rui","Yago"],
+    "COPILOTO": ["Cauê","Ruben","Ernesto","Daniela","Thales","Serafim","Ronalldo","Rodrigo"]
+};
+function getGrupo(nome) {
+    if (GRUPOS_PILOTO["CARAVAN"].includes(nome)) return "CARAVAN";
+    if (GRUPOS_PILOTO["COPILOTO"].includes(nome)) return "COPILOTO";
+    return "CESSNA 206/210";
+}
+
+// ===== DADOS =====
+let LOGS = {};
+let SUGESTOES_GLOBAIS = {};
+
+function getNomeFromRow(row) {
+    if (row.dataset && row.dataset.pilot) return row.dataset.pilot;
+    const nomeCell = row.cells[0];
+    const primeiroNo = nomeCell?.childNodes[0];
+    if (primeiroNo && primeiroNo.nodeType === Node.TEXT_NODE) return primeiroNo.textContent.trim();
+    return nomeCell?.innerText.trim() || "";
+}
+
+// ===== LÓGICA DE COR =====
+function obterChaveSugestao(inp) {
+    const pilot = inp.dataset.pilot;
+    const dia = inp.dataset.dia;
+    const mes = document.getElementById('campoMes').value.trim() || "Julho";
+    return `${mes}_${anoAtual}_${pilot}_${dia}`;
+}
+
+function atualizarCorInput(inp, sugestoes) {
+    const valor = parseHora(inp.value);
+    inp.classList.remove('has-value', 'is-zero', 'sugestao');
+    inp.style.color = '';
+    inp.style.borderColor = '';
+
+    if (valor === null) {
+        const key = obterChaveSugestao(inp);
+        if (sugestoes && sugestoes[key]) {
+            inp.classList.add('sugestao');
+        }
+        return;
+    } else if (valor === 0) {
+        inp.classList.add('is-zero');
+    } else if (valor > 0) {
+        inp.classList.add('has-value');
+    } else {
+        inp.style.color = 'red';
+        inp.style.borderColor = 'red';
+    }
+}
+
+function aplicarSugestoesSalvas() {
+    const sugestoes = SUGESTOES_GLOBAIS;
+    document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => {
+        atualizarCorInput(inp, sugestoes);
+    });
+}
+
+function atualizarTotalLinha(row) {
+    let soma = 0;
+    row.querySelectorAll('.input-hora').forEach(inp => {
+        const v = parseHora(inp.value);
+        if (v !== null && v > 0) soma += v;
+    });
+    const tc = row.querySelector('.total-cell');
+    if (tc) tc.textContent = formatarHora(soma);
+    return soma;
+}
+
+// ===== STREAK (6 dias trabalhados → 7º laranja) =====
+function validarStreaks() {
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const inputs = row.querySelectorAll('.input-hora');
+        const vals = Array.from(inputs).map(inp => {
+            const v = parseHora(inp.value);
+            return (v !== null);
+        });
+        const seq = new Array(DIAS).fill(false);
+        let streak = 0, i = 0;
+        while (i < DIAS) {
+            if (vals[i]) {
+                streak++;
+                if (streak === 6) {
+                    for (let j = i - 5; j <= i; j++) seq[j] = true;
+                    const diaSeguinte = i + 1;
+                    if (diaSeguinte < DIAS) seq[diaSeguinte] = true;
+                    streak = 0;
+                    i = diaSeguinte + 1;
+                    continue;
+                }
+            } else { streak = 0; }
+            i++;
+        }
+        inputs.forEach((inp, idx) => inp.classList.toggle('streak-day', seq[idx]));
+    });
+}
+
+// ===== CONTAGEM DE FOLGAS (baseada em células VAZIAS) =====
+function getLimiteDiasContagem() {
+    const hoje = new Date();
+    const mesReal = hoje.getMonth() + 1;
+    const anoReal = hoje.getFullYear();
+    const mesExibidoNome = document.getElementById('campoMes').value.trim() || "Julho";
+    const mesExibido = getMesNumero(mesExibidoNome);
+    if (anoAtual === anoReal && mesExibido === mesReal) return hoje.getDate();
+    if (anoAtual < anoReal || (anoAtual === anoReal && mesExibido < mesReal)) return DIAS;
+    return 0;
+}
+
+function contarFolgas(nome, row) {
+    const limite = getLimiteDiasContagem();
+    let count = 0;
+    for (let i = 0; i < limite; i++) {
+        const inp = row.cells[i+1]?.querySelector('.input-hora');
+        if (inp && parseHora(inp.value) === null) {
+            count++;
+        }
+    }
+    return count;
+}
+
+function atualizarTodosContadores() {
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const nome = getNomeFromRow(row);
+        const count = contarFolgas(nome, row);
+        const tdNome = row.cells[0];
+        let badge = tdNome.querySelector('.folga-badge');
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'folga-badge';
+            tdNome.appendChild(badge);
+        }
+        const digits = String(count).split('').map(d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[parseInt(d)]).join('');
+        badge.textContent = digits;
+        badge.className = 'folga-badge';
+        if (count < 8) badge.classList.add('normal');
+        else if (count === 8) badge.classList.add('igual8');
+        else badge.classList.add('acima8');
+    });
+}
+
+function recalcularTudo() {
+    let soma = 0;
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => soma += atualizarTotalLinha(row));
+    const tfoot = document.getElementById('tfootTotal');
+    tfoot.innerHTML = '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style="font-weight:bold">🏁 TOTAL GERAL</td>${'<td></td>'.repeat(DIAS)}<td class="total-geral">${formatarHora(soma)}</td>`;
+    tfoot.appendChild(tr);
+    validarStreaks();
+    atualizarTotaisBotoesDias();
+    atualizarTodosContadores();
+    aplicarSugestoesSalvas();
+}
+
+function totalHorasDia(diaIndex) {
+    let soma = 0;
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const inp = row.cells[diaIndex+1]?.querySelector('.input-hora');
+        if (inp) { 
+            const v = parseHora(inp.value); 
+            if(v !== null && v > 0) soma+=v; 
+        }
+    });
+    return soma;
+}
+
+function atualizarTotaisBotoesDias() {
+    document.querySelectorAll('.btn-dia').forEach((btn, i) => {
+        const total = totalHorasDia(i);
+        const el = btn.querySelector('.dia-total');
+        if (el) el.textContent = total > 0 ? formatarHora(total)+'h' : '';
+        btn.classList.toggle('tem-dados', total > 0);
+    });
+}
+
+// ===== EDIÇÃO POR COLUNA =====
+function ativarEdicaoDia(diaIndex) {
+    if (!isEditing) {
+        showToast("⚠️ Desbloqueie a planilha primeiro.");
+        return;
+    }
+    sairEdicaoDia();
+    diaEditandoIndex = diaIndex;
+
+    document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = true);
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const inp = row.cells[diaIndex + 1]?.querySelector('.input-hora');
+        if (inp) inp.disabled = false;
+    });
+
+    document.querySelectorAll('.col-ativa').forEach(el => el.classList.remove('col-ativa'));
+    document.querySelectorAll('#tableHeader th')[diaIndex + 1]?.classList.add('col-ativa');
+    document.querySelectorAll('#tabelaHoras tbody tr').forEach(row => {
+        if (row.cells[diaIndex + 1]) row.cells[diaIndex + 1].classList.add('col-ativa');
+    });
+
+    document.querySelectorAll('.btn-dia').forEach((btn, i) => btn.classList.toggle('dia-editando', i === diaIndex));
+    document.getElementById('btnSairDia').style.display = 'inline-block';
+    document.getElementById('btnPreencherVazios').style.display = 'inline-block';
+    showToast(`✏️ Editando dia ${String(diaIndex + 1).padStart(2,'00')}`);
+}
+
+// ===== SAIR DA EDIÇÃO: NÃO REMOVE AS CORES VERDES =====
+function sairEdicaoDia() {
+    if (diaEditandoIndex !== null) {
+        document.querySelectorAll('#tabelaHoras tbody .input-hora')
+            .forEach(inp => inp.disabled = true);
+        document.querySelectorAll('.col-ativa').forEach(el => el.classList.remove('col-ativa'));
+        document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-editando'));
+        diaEditandoIndex = null;
+        document.getElementById('btnSairDia').style.display = 'none';
+        document.getElementById('btnPreencherVazios').style.display = 'none';
+        showToast('🔓 Edição geral restaurada');
+    }
+}
+
+// ===== PREENCHER VAZIOS: APLICA VERDE E SALVA =====
+function preencherVazios() {
+    if (diaEditandoIndex === null) {
+        showToast('⚠️ Selecione um dia primeiro.');
+        return;
+    }
+    let count = 0;
+    const dia = diaEditandoIndex;
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const inp = row.cells[dia + 1]?.querySelector('.input-hora');
+        if (!inp) return;
+        const valor = parseHora(inp.value);
+        if (valor === null) {
+            inp.classList.add('sugestao');
+            const key = obterChaveSugestao(inp);
+            SUGESTOES_GLOBAIS[key] = true;
+            count++;
+        } else {
+            inp.classList.remove('sugestao');
+            const key = obterChaveSugestao(inp);
+            delete SUGESTOES_GLOBAIS[key];
+        }
+    });
+    salvarNoBackend();
+    showToast(`🎨 ${count} células vazias destacadas em verde.`);
+}
+
+// ===== HABILITAR/DESABILITAR EDIÇÃO =====
+function setEditMode(enable) {
+    isEditing = enable;
+    if (!enable) {
+        sairEdicaoDia();
+        document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = true);
+    } else {
+        document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => inp.disabled = true);
+    }
+    document.getElementById('btnBloquear').disabled = !enable;
+    document.getElementById('btnDesbloquear').disabled = enable;
+    document.getElementById('campoMes').disabled = !enable;
+    document.getElementById('editModeChip').innerHTML = enable ? '✏️ EDIÇÃO ATIVA' : '📖 VISUALIZAÇÃO';
+    document.getElementById('statusBadge').innerHTML = enable ? '🔓 EDIÇÃO' : '🔒 LEITURA';
+    document.getElementById('statusBadge').classList.toggle('admin-mode', enable);
+    showToast(enable ? '✅ Modo edição ativado. Clique em um dia para editar.' : '🔒 Modo leitura ativado');
+}
+
+// ===== SENHA =====
+function exibirModalSenha() {
+    return new Promise((resolve) => {
+        const modalDiv = document.createElement('div');
+        modalDiv.className = 'modal-senha';
+        modalDiv.innerHTML = `
+            <div class="card-senha">
+                <h3>🔐 AUTENTICAÇÃO</h3>
+                <p>Digite a senha para editar:</p>
+                <input type="password" id="senhaInput" placeholder="Senha" autocomplete="off">
+                <div class="botoes-senha">
+                    <button class="btn-modal" id="confirmarSenha">Confirmar</button>
+                    <button class="btn-modal" id="cancelarSenha">Cancelar</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modalDiv);
+        const inputSenha = modalDiv.querySelector('#senhaInput');
+        const confirmar = () => { const s=inputSenha.value; modalDiv.remove(); resolve(s); };
+        const cancelar = () => { modalDiv.remove(); resolve(null); };
+        modalDiv.querySelector('#confirmarSenha').onclick = confirmar;
+        modalDiv.querySelector('#cancelarSenha').onclick = cancelar;
+        inputSenha.focus();
+        inputSenha.addEventListener('keypress', e => { if(e.key==='Enter') confirmar(); });
+    });
+}
+
+async function login() {
+    if (isEditing) return;
+    const senha = await exibirModalSenha();
+    if (senha === "Emerson" || senha === "Bispo") {
+        password = senha;
+        setEditMode(true);
+    } else if (senha !== null) {
+        showToast("❌ Senha incorreta.");
+    }
+}
+
+function bloquear() {
+    if (!isEditing) return;
+    setEditMode(false);
+    password = "";
+}
+
+// ===== SALVAMENTO COMPLETO =====
+async function salvarNoBackend() {
+    if (!isEditing || isSaving) return;
+    isSaving = true;
+    const syncSpan = document.getElementById('syncStatus');
+    syncSpan.innerHTML = '⏳ Salvando...';
+
+    try {
+        const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+        const month = getMesNumero(mesNome);
+        const logs = {};
+
+        document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+            const nome = getNomeFromRow(row);
+            logs[nome] = {};
+            row.querySelectorAll('.input-hora').forEach((inp, i) => {
+                const v = parseHora(inp.value);
+                if (v !== null) {
+                    logs[nome][i+1] = v;
+                } else {
+                    logs[nome][i+1] = null;
+                }
+            });
+        });
+
+        // Coleta TODAS as células verdes
+        const sugestoes = {};
+        document.querySelectorAll('#tabelaHoras tbody .input-hora.sugestao').forEach(inp => {
+            const key = obterChaveSugestao(inp);
+            sugestoes[key] = true;
+        });
+        // Atualiza o objeto global
+        SUGESTOES_GLOBAIS = sugestoes;
+
+        const payload = {
+            password,
+            logs,
+            month,
+            year: anoAtual,
+            sugestoes: sugestoes
+        };
+
+        console.log('💾 Salvando payload:', {
+            month,
+            year: anoAtual,
+            password: '***',
+            pilotos: Object.keys(logs).length,
+            sugestoes: Object.keys(sugestoes).length
+        });
+
+        const resp = await fetch('/api/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        console.log(`📤 Status HTTP: ${resp.status}`);
+        
+        // 🔧 Tratamento melhorado de erros
+        let respData;
+        const contentType = resp.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+            respData = await resp.json();
+        } else {
+            // Backend retornou HTML (erro 500)
+            const text = await resp.text();
+            console.error('❌ Backend retornou HTML ao invés de JSON:');
+            console.error(text.substring(0, 500));
+            throw new Error(`Erro no servidor (HTTP ${resp.status}). Verifique o console do servidor.`);
+        }
+        
+        if (!resp.ok) {
+            const erro = respData.erro || `HTTP ${resp.status}`;
+            throw new Error(erro);
+        }
+        
+        if (!respData.success) {
+            throw new Error(respData.erro || 'Erro desconhecido ao salvar');
+        }
+
+        localStorage.setItem('planilha_sugestoes', JSON.stringify(sugestoes));
+
+        syncSpan.innerHTML = '✅ Salvo';
+        setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
+        showToast('✅ Dados salvos com sucesso!');
+    } catch(e) {
+        console.error('❌ ERRO AO SALVAR:', e);
+        syncSpan.innerHTML = '❌ Erro ao salvar';
+        
+        // Mostra erro detalhado
+        let mensagem = e.message;
+        if (mensagem.includes('Unexpected token')) {
+            mensagem = 'Erro no servidor - retornou HTML ao invés de JSON. Verifique logs do servidor.';
+        } else if (mensagem.includes('Failed to fetch')) {
+            mensagem = 'Erro de conexão - servidor pode estar offline';
+        }
+        
+        showToast(`❌ ${mensagem}`, 5000);
+    } finally {
+        isSaving = false;
+    }
+}
+
+// ===== CARREGAR DO BACKEND =====
+async function carregarDoBackend() {
+    const syncSpan = document.getElementById('syncStatus');
+    syncSpan.innerHTML = '⏳ Carregando...';
+    try {
+        const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+        const mesNum = getMesNumero(mesNome);
+        const url = `/api/data?month=${mesNum}&year=${anoAtual}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.pilots || !data.logs) throw new Error('Resposta incompleta');
+
+        LOGS = data.logs || {};
+        
+        // 🔧 CORREÇÃO 1: CARREGAR SUGESTÕES PRIMEIRO (ANTES de criar os inputs)
+        if (data.sugestoes) {
+            SUGESTOES_GLOBAIS = data.sugestoes;
+            console.log('📥 Sugestões carregadas do backend:', SUGESTOES_GLOBAIS);
+            localStorage.setItem('planilha_sugestoes', JSON.stringify(SUGESTOES_GLOBAIS));
+        } else {
+            const localSugestoes = JSON.parse(localStorage.getItem('planilha_sugestoes') || '{}');
+            SUGESTOES_GLOBAIS = localSugestoes;
+            console.log('📥 Usando sugestões do localStorage:', SUGESTOES_GLOBAIS);
+        }
+
+        atualizarDias();
+
+        const thead = document.getElementById('tableHeader');
+        let headerHtml = `<tr><th>👤 PILOTO</th>`;
+        for (let i = 0; i < DIAS; i++) {
+            const diaNum = i + 1;
+            const dataObj = new Date(anoAtual, mesNum-1, diaNum);
+            const diaSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][dataObj.getDay()];
+            headerHtml += `<th>${String(diaNum).padStart(2,'00')} ${diaSemana}</th>`;
+        }
+        headerHtml += `<th>⭐ TOTAL</th></tr>`;
+        thead.innerHTML = headerHtml;
+
+        const tbody = document.getElementById('planilhaBody');
+        tbody.innerHTML = '';
+        const grupos = { "CESSNA 206/210":[], "CARAVAN":[], "COPILOTO":[] };
+        data.pilots.forEach(p => {
+            const grp = getGrupo(p.name);
+            if (grupos[grp]) grupos[grp].push(p);
+            else grupos["CESSNA 206/210"].push(p);
+        });
+
+        for (let g in grupos) {
+            grupos[g].sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        for (let grupo of ["CESSNA 206/210","CARAVAN","COPILOTO"]) {
+            const titleRow = document.createElement('tr');
+            titleRow.classList.add('group-title-row');
+            let iconClass = "fa-plane-up";
+            if (grupo === "CARAVAN") iconClass = "fa-plane-departure";
+            if (grupo === "COPILOTO") iconClass = "fa-user-pilot";
             
-        print(f"📥 Dados recebidos - Chaves: {list(data.keys())}")
-        sys.stdout.flush()
-        
-        # Valida senha
-        password = data.get("password")
-        if password not in [EDIT_PASSWORD, EDIT_PASSWORD_2]:
-            print(f"❌ Senha inválida: {password}")
-            sys.stdout.flush()
-            return jsonify({"success": False, "erro": "Senha inválida"}), 401
-            
-        # Valida mês e ano
-        month = data.get("month")
-        year = data.get("year")
-        if not month or not year:
-            print("❌ Mês ou ano não fornecidos")
-            sys.stdout.flush()
-            return jsonify({"success": False, "erro": "Mês e ano obrigatórios"}), 400
-        
-        try:
-            month = int(month)
-            year = int(year)
-        except (ValueError, TypeError) as e:
-            print(f"❌ Erro ao converter mês/ano: {e}")
-            sys.stdout.flush()
-            return jsonify({"success": False, "erro": "Mês/ano inválidos"}), 400
-        
-        sugestoes_recebidas = data.get("sugestoes", {})
-        mes_nome = getNomeMes(month)
-        
-        print(f"📥 Processando: {mes_nome}/{year} com {len(sugestoes_recebidas)} sugestões")
-        sys.stdout.flush()
-        
-        # 🔧 SALVA VALORES E SUGESTÕES
-        logs_dict = data.get("logs", {})
-        if not isinstance(logs_dict, dict):
-            print("❌ Logs não é um dicionário")
-            sys.stdout.flush()
-            return jsonify({"success": False, "erro": "Formato de logs inválido"}), 400
-        
-        saved_count = 0
-        for pilot_name, days in logs_dict.items():
-            try:
-                pilot = Pilot.query.filter_by(name=pilot_name).first()
-                if not pilot:
-                    print(f"⚠️ Piloto não encontrado: {pilot_name}")
-                    sys.stdout.flush()
-                    continue
+            titleRow.innerHTML = `<td colspan="${DIAS+2}"><i class="fas ${iconClass}"></i> ${grupo}</td>`;
+            tbody.appendChild(titleRow);
+            for (let p of grupos[grupo]) {
+                const row = document.createElement('tr');
+                row.classList.add('membro-row');
+                row.dataset.pilot = p.name;
+                const nomeCell = document.createElement('td');
+                nomeCell.textContent = p.name;
+                row.appendChild(nomeCell);
+                let total = 0;
+                for (let i = 0; i < DIAS; i++) {
+                    const td = document.createElement('td');
+                    const inp = document.createElement('input');
+                    inp.type = 'text';
+                    inp.inputMode = 'decimal';
+                    inp.classList.add('input-hora');
+                    inp.placeholder = '';
+                    inp.dataset.pilot = p.name;
+                    inp.dataset.dia = i + 1;
+
+                    const valorSalvo = (LOGS[p.name] && LOGS[p.name][i+1] !== undefined) ? LOGS[p.name][i+1] : null;
                     
-                if not isinstance(days, dict):
-                    print(f"⚠️ Days não é dict para {pilot_name}")
-                    sys.stdout.flush()
-                    continue
-                
-                for day_str, hours in days.items():
-                    try:
-                        day = int(day_str)
-                    except (ValueError, TypeError):
-                        print(f"⚠️ Dia inválido: {day_str}")
-                        sys.stdout.flush()
-                        continue
+                    // 🔧 MOSTRAR VAZIO POR PADRÃO (usuário controla quando adicionar "0")
+                    if (valorSalvo !== null && valorSalvo !== 0) {
+                        inp.value = formatarHora(valorSalvo);
+                        if (valorSalvo > 0) total += valorSalvo;
+                    } else {
+                        inp.value = '';
+                    }
                     
-                    # Se horas é None, deleta o registro
-                    if hours is None:
-                        log = FlightLog.query.filter_by(
-                            pilot_id=pilot.id, day=day, month=month, year=year
-                        ).first()
-                        if log:
-                            db.session.delete(log)
-                            print(f"🗑️ Deletado: {pilot_name} dia {day}")
-                            sys.stdout.flush()
-                        continue
+                    atualizarCorInput(inp, SUGESTOES_GLOBAIS);
+                    inp.disabled = true;
+
+                    inp.addEventListener('input', function() {
+                        if (!isEditing || diaEditandoIndex !== i) return;
+                        this.classList.remove('sugestao');
+                        const key = obterChaveSugestao(this);
+                        delete SUGESTOES_GLOBAIS[key];
+                        // 🔧 Atualiza cores enquanto digita
+                        atualizarCorInput(this, SUGESTOES_GLOBAIS);
+                        atualizarTotalLinha(row);
+                        recalcularTudo();
+                        clearTimeout(this._saveTimer);
+                        this._saveTimer = setTimeout(salvarNoBackend, 1000);
+                    });
+                    
+                    inp.addEventListener('blur', function() {
+                        if (!isEditing || diaEditandoIndex !== i) return;
+                        let v = parseHora(this.value);
                         
-                    # Converte horas para float (pode ser 0)
-                    try:
-                        valor_horas = float(hours) if hours is not None else 0.0
-                    except (ValueError, TypeError):
-                        print(f"⚠️ Horas inválidas: {hours}")
-                        sys.stdout.flush()
-                        continue
+                        // 🔧 Usuário controla quando adicionar "0"
+                        if (v !== null && v < 0) {
+                            // Se digitou número negativo, converte para 0
+                            v = 0;
+                            this.value = '0';
+                        } else if (v === null) {
+                            // Campo vazio permanece vazio
+                            this.value = '';
+                        } else if (v === 0) {
+                            // Se digitou "0", mantém "0" (usuário fez isso propositalmente)
+                            this.value = '0';
+                        } else {
+                            // Se digitou outro número, formata
+                            this.value = formatarHora(v);
+                        }
+                        
+                        atualizarCorInput(this, SUGESTOES_GLOBAIS);
+                        atualizarTotalLinha(row);
+                        recalcularTudo();
+                        salvarNoBackend();
+                    });
                     
-                    # Busca ou cria o registro
-                    log = FlightLog.query.filter_by(
-                        pilot_id=pilot.id, day=day, month=month, year=year
-                    ).first()
-                    
-                    if log:
-                        log.hours = valor_horas
-                        print(f"✏️ Atualizado: {pilot_name} dia {day} = {valor_horas}h")
-                    else:
-                        log = FlightLog(
-                            pilot_id=pilot.id, day=day, month=month, 
-                            year=year, hours=valor_horas
-                        )
-                        db.session.add(log)
-                        print(f"➕ Criado: {pilot_name} dia {day} = {valor_horas}h")
-                    
-                    sys.stdout.flush()
-                    
-                    # 🔧 SALVA AS SUGESTÕES (cores verdes)
-                    key = f"{mes_nome}_{year}_{pilot_name}_{day}"
-                    if key in sugestoes_recebidas and sugestoes_recebidas[key]:
-                        if not log.sugestoes:
-                            log.sugestoes = {}
-                        log.sugestoes[key] = True
-                        print(f"🎨 Sugestão: {key}")
-                    else:
-                        # Remove a sugestão se não estiver mais marcada
-                        if log.sugestoes and key in log.sugestoes:
-                            del log.sugestoes[key]
-                            print(f"🗑️ Sugestão removida: {key}")
-                    
-                    saved_count += 1
-                    sys.stdout.flush()
-                    
-            except Exception as pilot_error:
-                print(f"❌ Erro processando piloto {pilot_name}: {pilot_error}")
-                import traceback
-                traceback.print_exc()
-                sys.stdout.flush()
-                continue
-                    
-        # Commit no banco
-        try:
-            db.session.commit()
-            print(f"✅ Commit OK - {saved_count} registros salvos, {len(sugestoes_recebidas)} sugestões")
-            sys.stdout.flush()
-            return jsonify({"success": True, "saved": saved_count})
-        except Exception as commit_error:
-            print(f"❌ Erro no commit: {commit_error}")
-            import traceback
-            traceback.print_exc()
-            sys.stdout.flush()
-            db.session.rollback()
-            return jsonify({"success": False, "erro": f"Erro ao salvar no banco: {str(commit_error)}"}), 500
+                    inp.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter' && isEditing && diaEditandoIndex === i) {
+                            e.preventDefault();
+                            this.blur();
+                        }
+                    });
+
+                    td.appendChild(inp);
+                    row.appendChild(td);
+                }
+                const totalCell = document.createElement('td');
+                totalCell.classList.add('total-cell');
+                totalCell.textContent = formatarHora(total);
+                row.appendChild(totalCell);
+                tbody.appendChild(row);
+            }
+        }
         
-    except Exception as e:
-        print(f"❌ ERRO GERAL em POST: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.stdout.flush()
-        try:
-            db.session.rollback()
-        except:
-            pass
-        return jsonify({"success": False, "erro": f"Erro no servidor: {str(e)}"}), 500
+        // 🔧 AGORA APLICA AS CORES (DEPOIS que inputs foram criados e sugestões já estão carregadas)
+        aplicarSugestoesSalvas();
+        recalcularTudo();
+        criarBotoesDias();
+        setEditMode(false);
+        syncSpan.innerHTML = '✅ Carregado';
+        setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 2000);
+        if (socket && socket.connected) {
+            socket.emit('join_month', { month: mesNum, year: anoAtual });
+        }
+    } catch(e) {
+        console.error(e);
+        document.getElementById('syncStatus').innerHTML = '❌ Erro';
+        showToast(`❌ Erro ao carregar: ${e.message}`, 4000);
+    }
+}
 
-# ===== INICIALIZAÇÃO =====
-with app.app_context():
-    db.create_all()
-    print("✅ Tabelas criadas/verificadas")
+// ===== BOTÕES DE DIAS (sem iniciais) =====
+function criarBotoesDias() {
+    const container = document.getElementById('botoesDias');
+    container.innerHTML = '';
+    for (let i = 0; i < DIAS; i++) {
+        const btn = document.createElement('button');
+        btn.classList.add('btn-dia');
+        const diaNum = i + 1;
+        btn.innerHTML = `<span class="dia-num">${String(diaNum).padStart(2,'00')}</span><span class="dia-total"></span>`;
+        btn.onclick = () => {
+            document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-selecionado'));
+            btn.classList.add('dia-selecionado');
+            if (isEditing) {
+                ativarEdicaoDia(i);
+            } else {
+                showToast('🔐 Desbloqueie a planilha para editar um dia.');
+            }
+        };
+        container.appendChild(btn);
+    }
+    atualizarTotaisBotoesDias();
+}
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    socketio.run(app, host="0.0.0.0", port=port)
+// ===== RANKING =====
+function mostrarRanking() {
+    const mesAtual = document.getElementById('campoMes').value.trim() || "Julho";
+    const pilotos = [];
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const nome = getNomeFromRow(row);
+        let total = 0;
+        row.querySelectorAll('.input-hora').forEach(inp => {
+            const v = parseHora(inp.value);
+            if (v !== null && v > 0) total += v;
+        });
+        const grupo = getGrupo(nome);
+        pilotos.push({ nome, total, grupo });
+    });
+
+    const grupos = ["CESSNA 206/210", "CARAVAN", "COPILOTO"];
+    const dadosPorGrupo = {};
+    grupos.forEach(g => dadosPorGrupo[g] = []);
+    pilotos.forEach(p => {
+        if (dadosPorGrupo[p.grupo]) dadosPorGrupo[p.grupo].push(p);
+        else dadosPorGrupo["CESSNA 206/210"].push(p);
+    });
+    for (let g in dadosPorGrupo) dadosPorGrupo[g].sort((a,b) => b.total - a.total);
+
+    let html = `<div class="card-detalhe"><h2 style="text-align:center;">📊 Ranking de Horas — ${mesAtual}</h2>`;
+    
+    const titulos = {
+        "CESSNA 206/210": '<i class="fas fa-plane-up" style="color:#3b2a1f;margin-right:8px;"></i> CMTES CESSNA 206/210',
+        "CARAVAN": '<i class="fas fa-plane-departure" style="color:#3b2a1f;margin-right:8px;"></i> CMTES CARAVAN 208',
+        "COPILOTO": '<i class="fas fa-user-pilot" style="color:#3b2a1f;margin-right:8px;"></i> COPILOTOS CARAVAN'
+    };
+    
+    for (let grupo of grupos) {
+        const lista = dadosPorGrupo[grupo] || [];
+        if (lista.length === 0) continue;
+        const maxTotal = Math.max(...lista.map(p => p.total), 0.1);
+        html += `<h3 style="margin-top:16px;color:#3b2a1f;border-bottom:2px solid #ccaa7a;padding-bottom:4px;">${titulos[grupo]}</h3><ul style="margin:4px 0 12px 0;padding-left:0;list-style:none;">`;
+        lista.forEach(p => {
+            const perc = maxTotal > 0 ? (p.total / maxTotal) * 100 : 0;
+            html += `<li style="padding:6px 8px;border-bottom:1px solid #e8d5b0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <span><strong>${p.nome}</strong></span>
+                    <strong style="color:${p.total>0?'#2a8a2a':'#aaa'}">${p.total === 0 ? '—' : formatarHora(p.total)+'h'}</strong>
+                </div>
+                <div class="progress-bar-wrap"><div class="barra-fill" style="width:${perc}%"></div></div>
+            </li>`;
+        });
+        html += `</ul>`;
+    }
+    html += `<button class="btn-fechar" id="fecharRanking">Fechar</button></div>`;
+    const modal = document.createElement('div');
+    modal.className = 'modal-detalhe';
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    modal.querySelector('#fecharRanking').onclick = () => modal.remove();
+    modal.onclick = e => { if (e.target === modal) modal.remove(); };
+}
+
+// ===== AJUDA =====
+function mostrarAjuda() {
+    const itens = [
+        { cor: '#fff1b5', texto: 'Célula com fundo amarelo → possui horas lançadas (>0)' },
+        { cor: '#e0e0e0', texto: 'Célula com fundo cinza → dia trabalhado sem horas (valor 0)' },
+        { cor: '#d4edda', texto: 'Célula com fundo verde → vazia/não preenchida (marcação persistente)' },
+        { cor: '#ffb366', texto: 'Célula com fundo laranja → 7º dia após 6 trabalhados (folga sugerida)' },
+        { cor: '#e7dbbc', texto: 'Total de horas por piloto (soma automática, ignora zeros)' },
+        { cor: '#4c351e', texto: 'Número sobrescrito ao lado do nome → contagem de folgas (dias vazios)' },
+    ];
+    let html = `<div class="card-ajuda"><h3 style="text-align:center;">📖 Legenda</h3>`;
+    itens.forEach(item => {
+        html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:${item.cor};border:1px solid #999;font-size:0.7rem;">&nbsp;</div><span>${item.texto}</span></div>`;
+    });
+    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">🔐 Desbloqueie com a senha, depois clique em um dia para editar apenas aquela coluna.<br>✅ Salvamento automático ao sair do campo.<br>0️⃣ Digite "0" para marcar dia trabalhado sem horas (não conta como folga).<br>🎨 Use "PREENCHER VAZIOS" para destacar células vazias em verde (persistente e sincronizado).</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
+    const modal = document.createElement('div');
+    modal.className = 'modal-ajuda';
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    modal.querySelector('#fecharAjuda').onclick = () => modal.remove();
+}
+
+// ===== NAVEGAÇÃO =====
+document.getElementById('btnMesAnterior').addEventListener('click', function() {
+    if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
+    sairEdicaoDia();
+    const mesAtual = document.getElementById('campoMes').value.trim();
+    const mesNum = getMesNumero(mesAtual);
+    let novoMesNum = mesNum - 1;
+    if (novoMesNum < 1) { novoMesNum = 12; anoAtual -= 1; }
+    const nomeMes = getNomeMes(novoMesNum);
+    document.getElementById('campoMes').value = nomeMes;
+    salvarMesAno(nomeMes, anoAtual);
+    carregarDoBackend();
+});
+document.getElementById('btnMesProximo').addEventListener('click', function() {
+    if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
+    sairEdicaoDia();
+    const mesAtual = document.getElementById('campoMes').value.trim();
+    const mesNum = getMesNumero(mesAtual);
+    let novoMesNum = mesNum + 1;
+    if (novoMesNum > 12) { novoMesNum = 1; anoAtual += 1; }
+    const nomeMes = getNomeMes(novoMesNum);
+    document.getElementById('campoMes').value = nomeMes;
+    salvarMesAno(nomeMes, anoAtual);
+    carregarDoBackend();
+});
+document.getElementById('campoMes').addEventListener('change', function() {
+    if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
+    sairEdicaoDia();
+    const nomeMes = this.value.trim();
+    salvarMesAno(nomeMes, anoAtual);
+    carregarDoBackend();
+});
+
+// ===== INICIALIZAÇÃO =====
+document.getElementById('btnDesbloquear').onclick = login;
+document.getElementById('btnBloquear').onclick = bloquear;
+document.getElementById('btnSairDia').onclick = sairEdicaoDia;
+document.getElementById('btnPreencherVazios').onclick = preencherVazios;
+document.getElementById('btnRanking').onclick = mostrarRanking;
+document.getElementById('btnAjuda').onclick = mostrarAjuda;
+
+const dadosStorage = obterMesAno();
+const dataAtual = new Date();
+if (dadosStorage) {
+    document.getElementById('campoMes').value = dadosStorage.mes;
+    anoAtual = dadosStorage.ano;
+} else {
+    const mesAtualNome = getNomeMes(dataAtual.getMonth() + 1);
+    document.getElementById('campoMes').value = mesAtualNome;
+    anoAtual = dataAtual.getFullYear();
+}
+carregarDoBackend();
+
+// ===== SOCKET.IO (opcional) =====
+let socket = null;
+function iniciarSocket() {
+    if (typeof io === 'undefined') return;
+    if (socket) return;
+    socket = io({ transports: ['polling'] });
+    socket.on('connect', () => {
+        document.getElementById('syncStatus').classList.add('rt-on');
+        document.getElementById('syncStatus').classList.remove('rt-off');
+        const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+        socket.emit('join_month', { month: getMesNumero(mesNome), year: anoAtual });
+    });
+    socket.on('disconnect', () => {
+        document.getElementById('syncStatus').classList.remove('rt-on');
+        document.getElementById('syncStatus').classList.add('rt-off');
+    });
+    socket.on('connect_error', () => {
+        document.getElementById('syncStatus').classList.remove('rt-on');
+        document.getElementById('syncStatus').classList.add('rt-off');
+    });
+    socket.on('logs_atualizados', (payload) => {
+        if (!payload) return;
+        const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+        const mesAtualNum = getMesNumero(mesNome);
+        if (Number(payload.month) !== Number(mesAtualNum) || Number(payload.year) !== Number(anoAtual)) return;
+        const { pilot, day, value } = payload;
+        if (!pilot || day === undefined) return;
+        document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+            if (getNomeFromRow(row) !== pilot) return;
+            const inp = row.cells[day]?.querySelector('.input-hora');
+            if (!inp) return;
+            const v = Number(value);
+            if (isNaN(v) || v === 0) {
+                // 🔧 Se 0, mostrar vazio (usuário controla)
+                inp.value = '';
+            } else {
+                inp.value = formatarHora(v);
+            }
+            atualizarCorInput(inp, SUGESTOES_GLOBAIS);
+            atualizarTotalLinha(row);
+        });
+        recalcularTudo();
+    });
+}
+iniciarSocket();
+</script>
+</body>
+</html>
