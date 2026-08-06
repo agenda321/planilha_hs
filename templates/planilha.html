@@ -939,6 +939,7 @@ async function carregarDoBackend() {
 
         LOGS = data.logs || {};
         
+        // 🔧 CORREÇÃO 1: CARREGAR SUGESTÕES PRIMEIRO (ANTES de criar os inputs)
         if (data.sugestoes) {
             SUGESTOES_GLOBAIS = data.sugestoes;
             console.log('📥 Sugestões carregadas do backend:', SUGESTOES_GLOBAIS);
@@ -1004,10 +1005,9 @@ async function carregarDoBackend() {
 
                     const valorSalvo = (LOGS[p.name] && LOGS[p.name][i+1] !== undefined) ? LOGS[p.name][i+1] : null;
                     
-                    if (valorSalvo !== null && valorSalvo === 0) {
-                        inp.value = '';
-                    } else if (valorSalvo !== null) {
-                        inp.value = formatarHora(valorSalvo);
+                    // 🔧 CORREÇÃO 2: MOSTRAR "0" CORRETAMENTE (não deixar vazio)
+                    if (valorSalvo !== null) {
+                        inp.value = valorSalvo === 0 ? '0' : formatarHora(valorSalvo);
                         if (valorSalvo > 0) total += valorSalvo;
                     } else {
                         inp.value = '';
@@ -1032,12 +1032,12 @@ async function carregarDoBackend() {
                         let v = parseHora(this.value);
                         if (v !== null && v < 0) {
                             v = 0;
-                            this.value = formatarHora(v);
+                            this.value = '0';
                         }
                         if (v === null) {
                             this.value = '';
                         } else {
-                            this.value = formatarHora(v);
+                            this.value = v === 0 ? '0' : formatarHora(v);
                         }
                         atualizarCorInput(this, SUGESTOES_GLOBAIS);
                         atualizarTotalLinha(row);
@@ -1062,6 +1062,8 @@ async function carregarDoBackend() {
                 tbody.appendChild(row);
             }
         }
+        
+        // 🔧 AGORA APLICA AS CORES (DEPOIS que inputs foram criados e sugestões já estão carregadas)
         aplicarSugestoesSalvas();
         recalcularTudo();
         criarBotoesDias();
@@ -1269,7 +1271,7 @@ function iniciarSocket() {
             if (isNaN(v)) {
                 inp.value = '';
             } else {
-                inp.value = formatarHora(v);
+                inp.value = v === 0 ? '0' : formatarHora(v);
             }
             atualizarCorInput(inp, SUGESTOES_GLOBAIS);
             atualizarTotalLinha(row);
