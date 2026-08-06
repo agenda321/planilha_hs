@@ -16,7 +16,6 @@ CORS(app)
 print("✅ Flask e CORS configurados")
 sys.stdout.flush()
 
-# SocketIO sem async_mode específico (usa o padrão que funciona com gunicorn)
 socketio = SocketIO(app, cors_allowed_origins="*")
 print("✅ SocketIO configurado")
 sys.stdout.flush()
@@ -237,12 +236,7 @@ def get_data():
                 result["logs"][log.pilot.name] = {}
             result["logs"][log.pilot.name][log.day] = log.hours
 
-        for p in pilots:
-            escala_pilot = obtener_escala_dinamica(p, month, year)
-            if escala_pilot:
-                result["escala"][p.name] = escala_pilot
-
-        print(f"📤 Retornando {len(sugestoes_consolidadas)} sugestões e {len(status_map)} status para {month}/{year}")
+        print(f"📤 Retornando {len(sugestoes_consolidadas)} sugestões para {month}/{year}")
         return jsonify(result)
     except Exception as e:
         print(f"❌ Erro em /api/data (GET): {e}")
@@ -267,109 +261,74 @@ def save_data():
         year = int(year)
 
         sugestoes_recebidas = data.get("sugestoes", {})
-        status_recebido = data.get("status", {})
         mes_nome = getNomeMes(month)
 
-        print(f"📥 Salvando {len(sugestoes_recebidas)} sugestões e {len(status_recebido)} status para {month}/{year}")
+        print(f"📥 RECEBIDO {len(sugestoes_recebidas)} SUGESTÕES")
+        print(f"📥 SUGESTÕES: {sugestoes_recebidas}")
 
-        eventos_para_emitir = []
-
-        # === Salvar horas e sugestões ===
+        # === Salvar horas ===
         for pilot_name, days in data.get("logs", {}).items():
             pilot = Pilot.query.filter_by(name=pilot_name).first()
             if not pilot:
-                print(f"⚠️ Piloto não encontrado: {pilot_name}")
                 continue
             for day_str, hours in days.items():
                 day = int(day_str)
-                key = f"{mes_nome}_{year}_{pilot_name}_{day}"
-
-                has_sugestao = key in sugestoes_recebidas and sugestoes_recebidas[key]
-
-                if hours is None or (isinstance(hours, str) and hours.strip() == ""):
-                    valor_horas = None
-                else:
-                    try:
-                        valor_horas = float(hours)
-                    except (ValueError, TypeError):
-                        valor_horas = None
-
-                log = FlightLog.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
-
-                if valor_horas is None and not has_sugestao:
+                if hours is None:
+                    log = FlightLog.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
                     if log:
                         db.session.delete(log)
                     continue
-
+                    
+                valor_horas = float(hours) if hours else 0.0
+                log = FlightLog.query.filter_by(pilot_id=pilot.id, day=day, month=month, year=year).first()
+                
                 if log:
-                    if valor_horas is not None:
-                        log.hours = valor_horas
-
-                    if log.sugestoes is None:
-                        log.sugestoes = {}
-
-                    sug_dict = dict(log.sugestoes)
-                    if has_sugestao:
-                        sug_dict[key] = True
-                    else:
-                        sug_dict.pop(key, None)
-
-                    log.sugestoes = sug_dict
+                    log.hours = valor_horas
                 else:
-                    final_hours = valor_horas if valor_horas is not None else 0.0
-                    sug_dict = {key: True} if has_sugestao else {}
-
-                    log = FlightLog(
-                        pilot_id=pilot.id,
-                        day=day,
-                        month=month,
-                        year=year,
-                        hours=final_hours,
-                        sugestoes=sug_dict
-                    )
+                    log = FlightLog(pilot_id=pilot.id, day=day, month=month, year=year, hours=valor_horas)
                     db.session.add(log)
 
-                eventos_para_emitir.append({
-                    "pilot": pilot_name,
-                    "day": day,
-                    "value": valor_horas if valor_horas is not None else 0.0,
-                    "month": month,
-                    "year": year
-                })
-
-        # === Salvar status / cores ===
-        for pilot_name, days in status_recebido.items():
-            pilot = Pilot.query.filter_by(name=pilot_name).first()
+        # === SALVAR SUGESTÕES (CORES VERDES) ===
+        for key, value in sugestoes_recebidas.items():
+            if not value:
+                continue
+            # Extrai: mes_ano_piloto_dia
+            parts = key.split('_')
+            if len(parts) < 4:
+                continue
+            mes_nome_key = parts[0]
+            ano_key = int(parts[1])
+            pilot_name_key = parts[2]
+            dia_key = int(parts[3])
+            
+            if ano_key != year or mes_nome_key != mes_nome:
+                continue
+                
+            pilot = Pilot.query.filter_by(name=pilot_name_key).first()
             if not pilot:
                 continue
-            for day_str, status_val in days.items():
-                day = int(day_str)
-                override = StatusOverride.query.filter_by(
-                    pilot_id=pilot.id, day=day, month=month, year=year
-                ).first()
-
-                if status_val and str(status_val).strip():
-                    if override:
-                        override.status = status_val
-                    else:
-                        override = StatusOverride(
-                            pilot_id=pilot.id,
-                            day=day,
-                            month=month,
-                            year=year,
-                            status=status_val
-                        )
-                        db.session.add(override)
-                else:
-                    if override:
-                        db.session.delete(override)
+                
+            log = FlightLog.query.filter_by(pilot_id=pilot.id, day=dia_key, month=month, year=year).first()
+            if log:
+                if log.sugestoes is None:
+                    log.sugestoes = {}
+                log.sugestoes[key] = True
+                print(f"✅ SUGESTÃO SALVA: {key}")
+            else:
+                # Se não existe log para este dia, cria um com sugestão
+                log = FlightLog(
+                    pilot_id=pilot.id,
+                    day=dia_key,
+                    month=month,
+                    year=year,
+                    hours=0.0,
+                    sugestoes={key: True}
+                )
+                db.session.add(log)
+                print(f"✅ NOVO LOG COM SUGESTÃO: {key}")
 
         db.session.commit()
-        print(f"✅ Commit realizado com sucesso no Supabase para {month}/{year}")
-
-        for evento in eventos_para_emitir:
-            socketio.emit("logs_atualizados", evento, room=sala_do_mes(month, year))
-
+        print(f"✅ Commit realizado com sucesso para {month}/{year}")
         return jsonify({"success": True})
     except Exception as e:
         print(f"❌ Erro em /api/data (POST): {e}")
