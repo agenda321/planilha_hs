@@ -257,9 +257,10 @@ def get_data():
 
 @app.route("/api/data", methods=["POST"])
 def save_data():
+    print("🚨 ROTA POST /api/data FOI CHAMADA!")
     try:
         data = request.get_json()
-        print(f"📥 Recebido POST /api/data")
+        print(f"📥 Recebido POST /api/data com dados: {data.keys() if data else 'None'}")
         
         if data.get("password") not in [EDIT_PASSWORD, EDIT_PASSWORD_2]:
             print("❌ Senha inválida")
@@ -299,7 +300,6 @@ def save_data():
                 
                 if log:
                     log.hours = valor_horas
-                    # Atualiza sugestões
                     key = f"{mes_nome}_{year}_{pilot_name}_{day}"
                     if not log.sugestoes:
                         log.sugestoes = {}
