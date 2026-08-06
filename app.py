@@ -1,6 +1,5 @@
 import os
 import sys
-import time
 from flask import Flask, request, jsonify, render_template, redirect
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
@@ -244,4 +243,6 @@ with app.app_context():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    print(f"✅ Servidor rodando na porta {port}")
+    sys.stdout.flush()
     socketio.run(app, host="0.0.0.0", port=port)
