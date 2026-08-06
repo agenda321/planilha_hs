@@ -1,8 +1,13 @@
-flask
-flask-sqlalchemy
-flask-cors
-flask-socketio
-python-socketio
-python-engineio
-psycopg2-binary
-gunicorn
+Flask==2.3.3
+Flask-SQLAlchemy==3.0.5
+Flask-CORS==4.0.0
+Flask-SocketIO==5.3.4
+python-socketio==5.9.0
+python-engineio==4.7.1
+SQLAlchemy==2.0.21
+
+# Para produção com PostgreSQL (opcional)
+psycopg2-binary==2.9.7
+
+# Para desenvolvimento
+python-dotenv==1.0.0
