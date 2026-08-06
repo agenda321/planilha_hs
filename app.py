@@ -386,6 +386,92 @@ def reset_banco():
     try:
         db.drop_all()
         db.create_all()
-        return "Banco reiniciado com sucesso!"
+        povoar_dados_iniciais()
+        return "Banco reiniciado e dados da frota atualizados com sucesso!"
     except Exception as e:
         return f"Erro: {e}", 500
+
+@app.route("/api/debug/clear-month/<int:month>/<int:year>")
+def clear_month(month, year):
+    try:
+        apagados = FlightLog.query.filter_by(month=month, year=year).delete()
+        db.session.commit()
+        return f"✅ {apagados} registro(s) de horas apagados para {month}/{year}. Pilotos e escala não foram alterados."
+    except Exception as e:
+        db.session.rollback()
+        return f"Erro: {e}", 500
+
+def povoar_dados_iniciais():
+    grupos = {
+        "Andre": "CESSNA 206/210", "Andrade": "CESSNA 206/210", "Luiz": "CESSNA 206/210",
+        "Adelio": "CESSNA 206/210", "Amarildo": "CESSNA 206/210", "Cleverson": "CESSNA 206/210",
+        "Hazafe": "CESSNA 206/210", "Dayvid": "CESSNA 206/210", "Edson": "CESSNA 206/210",
+        "Frank": "CESSNA 206/210", "Gabriel": "CESSNA 206/210", "Igorh": "CESSNA 206/210",
+        "Leandro": "CESSNA 206/210", "Milton": "CESSNA 206/210", "Paulo": "CESSNA 206/210",
+        "Ronie": "CESSNA 206/210", "Sergio": "CESSNA 206/210", "Otto": "CESSNA 206/210",
+        "Dany": "CESSNA 206/210", "Lucas": "CESSNA 206/210", "Roberto": "CESSNA 206/210",
+        "Renan": "CESSNA 206/210", "Wellber": "CESSNA 206/210", "Bento": "CESSNA 206/210",
+        "Costa": "CESSNA 206/210", "Victor": "CESSNA 206/210", "Matias": "CESSNA 206/210",
+        "Cleiton": "CARAVAN", "Joao": "CARAVAN", "Pascoal": "CARAVAN",
+        "Lindomar": "CARAVAN", "Perisson": "CARAVAN", "Rui": "CARAVAN", "Yago": "CARAVAN",
+        "Cauê": "COPILOTO", "Ruben": "COPILOTO", "Ernesto": "COPILOTO", "Daniela": "COPILOTO",
+        "Thales": "COPILOTO", "Serafim": "COPILOTO", "Ronalldo": "COPILOTO", "Rodrigo": "COPILOTO"
+    }
+    nomes_completos = {
+        "Adelio": "Adelio Costa Felinto", "Otto": "Albert Otto Azevedo",
+        "Andre": "Andre Luis Fernandes", "Cleiton": "Cleiton Taumaturgo",
+        "Cleverson": "Cleverson dos Santos", "Edson": "Edson Fonteles Portela",
+        "Frank": "Franker Wendell Dias", "Gabriel": "Gabriel de Oliveira",
+        "Costa": "Felipe Pereira Costa de Lima", "Hazafe": "Hazafe Pacheco de Alencar",
+        "Amarildo": "João Amarildo Reis dos Santos", "Igorh": "Igorh Coutinho Martins",
+        "Joao": "Joao Marcus Oliveira", "Dayvid": "Jose Deyvid Monteiro",
+        "Leandro": "Leandro Magalhães", "Lindomar": "Lindomar Bras Mota",
+        "Lucas": "Lucas Alves Pereira", "Luiz": "Luiz Andrade de Souza",
+        "Matias": "Matias Pires de Campos Junior", "Milton": "Milton Braga de Souza",
+        "Pascoal": "Pascoal Brito de Araujo", "Paulo": "Paulo Andre Silva",
+        "Perisson": "Perisson Parmigiani", "Renan": "Renan da Silva Nascimento",
+        "Roberto": "Roberto Adolfo Boesing", "Ronie": "Ronie Welter",
+        "Rui": "Rui de Almeida Vasconcelos", "Sergio": "Sergio Carneiro Rodrigues",
+        "Victor": "Victor Augusto Fernandes Monteiro da Silva", "Bento": "Vitor da Costa Bento",
+        "Wellber": "Wellber Nogueira Barros", "Andrade": "Wilken Andrade de Paulo",
+        "Yago": "Yago Bezerra Correia", "Cauê": "Caue Montanari",
+        "Daniela": "Daniela Goncalves Fabricio", "Ernesto": "Ernesto da Silva Kaster",
+        "Ruben": "Francisco Rubenicio Souza", "Rodrigo": "Rodrigo Silva Melo",
+        "Ronalldo": "Ronalldo Rodrigues Parreao Junior", "Thales": "Thales Araujo Penna",
+        "Serafim": "Tiago Carvalho Serafim"
+    }
+    for nome, group in grupos.items():
+        piloto = Pilot(name=nome, full_name=nomes_completos.get(nome, nome), group=group)
+        db.session.add(piloto)
+    db.session.commit()
+    print("✅ Pilotos populados")
+    sys.stdout.flush()
+
+def init_db():
+    print("🔄 Tentando criar tabelas...")
+    sys.stdout.flush()
+    for attempt in range(5):
+        try:
+            with app.app_context():
+                db.create_all()
+                if Pilot.query.count() == 0:
+                    povoar_dados_iniciais()
+                else:
+                    print(f"✅ Banco já possui {Pilot.query.count()} pilotos.")
+                print("✅ Banco conectado e inicializado com sucesso.")
+                sys.stdout.flush()
+                return
+        except Exception as e:
+            print(f"⚠️ Tentativa {attempt+1}/5 falhou: {e}")
+            sys.stdout.flush()
+            time.sleep(5)
+    print("❌ Falha ao criar tabelas após 5 tentativas")
+    sys.stdout.flush()
+
+init_db()
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    print(f"✅ Servidor rodando na porta {port}")
+    sys.stdout.flush()
+    socketio.run(app, host="0.0.0.0", port=port)
