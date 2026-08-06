@@ -247,7 +247,6 @@
         }
         .input-hora::placeholder { color: #bbb; font-size: 0.65rem; }
         
-        /* Estados visuais */
         .input-hora.has-value { 
             background: #fff1b5; 
             border-color: #e4b149; 
@@ -302,7 +301,6 @@
             box-shadow: inset 0 1px 3px #ffdf9a, 0 2px 4px black;
         }
 
-        /* Modais */
         .modal-senha, .modal-detalhe, .modal-ajuda {
             position: fixed;
             top: 0;
@@ -471,7 +469,7 @@
             </div>
         </div>
 
-        <!-- Dias (botões rápidos) -->
+        <!-- Dias -->
         <div class="dias-botoes" id="botoesDias"></div>
 
         <!-- Tabela -->
@@ -492,7 +490,6 @@
 
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
-// ===== TOAST =====
 function showToast(msg, duracao = 2500) {
     let toast = document.getElementById('toast');
     if (!toast) {
@@ -507,7 +504,6 @@ function showToast(msg, duracao = 2500) {
     toast._timer = setTimeout(() => toast.classList.remove('show'), duracao);
 }
 
-// ===== PERSISTÊNCIA DO MÊS E ANO =====
 const MES_STORAGE_KEY = 'planilha_mes_ano';
 function salvarMesAno(mes, ano) {
     localStorage.setItem(MES_STORAGE_KEY, JSON.stringify({ mes, ano }));
@@ -548,7 +544,6 @@ function parseHora(v) {
 }
 function formatarHora(n) { return n.toFixed(1).replace('.',','); }
 
-// ===== GRUPOS =====
 const GRUPOS_PILOTO = {
     "CARAVAN": ["Cleiton","Joao","Pascoal","Lindomar","Perisson","Rui","Yago"],
     "COPILOTO": ["Cauê","Ruben","Ernesto","Daniela","Thales","Serafim","Ronalldo","Rodrigo"]
@@ -559,7 +554,6 @@ function getGrupo(nome) {
     return "CESSNA 206/210";
 }
 
-// ===== DADOS =====
 let LOGS = {};
 let SUGESTOES_GLOBAIS = {};
 
@@ -571,12 +565,12 @@ function getNomeFromRow(row) {
     return nomeCell?.innerText.trim() || "";
 }
 
-// ===== LÓGICA DE COR =====
 function obterChaveSugestao(inp) {
     const pilot = inp.dataset.pilot;
     const dia = inp.dataset.dia;
-    const mes = document.getElementById('campoMes').value.trim() || "Julho";
-    return `${mes}_${anoAtual}_${pilot}_${dia}`;
+    const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+    const mesNum = getMesNumero(mesNome);
+    return `${mesNum}_${anoAtual}_${pilot}_${dia}`;
 }
 
 function atualizarCorInput(inp, sugestoes) {
@@ -619,7 +613,6 @@ function atualizarTotalLinha(row) {
     return soma;
 }
 
-// ===== STREAK (6 dias trabalhados → 7º laranja) =====
 function validarStreaks() {
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
         const inputs = row.querySelectorAll('.input-hora');
@@ -647,7 +640,6 @@ function validarStreaks() {
     });
 }
 
-// ===== CONTAGEM DE FOLGAS (baseada em células VAZIAS) =====
 function getLimiteDiasContagem() {
     const hoje = new Date();
     const mesReal = hoje.getMonth() + 1;
@@ -726,7 +718,6 @@ function atualizarTotaisBotoesDias() {
     });
 }
 
-// ===== EDIÇÃO POR COLUNA =====
 function ativarEdicaoDia(diaIndex) {
     if (!isEditing) {
         showToast("⚠️ Desbloqueie a planilha primeiro.");
@@ -750,10 +741,9 @@ function ativarEdicaoDia(diaIndex) {
     document.querySelectorAll('.btn-dia').forEach((btn, i) => btn.classList.toggle('dia-editando', i === diaIndex));
     document.getElementById('btnSairDia').style.display = 'inline-block';
     document.getElementById('btnPreencherVazios').style.display = 'inline-block';
-    showToast(`✏️ Editando dia ${String(diaIndex + 1).padStart(2,'00')}`);
+    showToast(`✏️ Editando dia ${String(diaIndex + 1).padStart(2,'0')}`);
 }
 
-// ===== SAIR DA EDIÇÃO: NÃO REMOVE AS CORES VERDES =====
 function sairEdicaoDia() {
     if (diaEditandoIndex !== null) {
         document.querySelectorAll('#tabelaHoras tbody .input-hora')
@@ -767,7 +757,6 @@ function sairEdicaoDia() {
     }
 }
 
-// ===== PREENCHER VAZIOS: APLICA VERDE E SALVA =====
 function preencherVazios() {
     if (diaEditandoIndex === null) {
         showToast('⚠️ Selecione um dia primeiro.');
@@ -794,7 +783,6 @@ function preencherVazios() {
     showToast(`🎨 ${count} células vazias destacadas em verde.`);
 }
 
-// ===== HABILITAR/DESABILITAR EDIÇÃO =====
 function setEditMode(enable) {
     isEditing = enable;
     if (!enable) {
@@ -812,7 +800,6 @@ function setEditMode(enable) {
     showToast(enable ? '✅ Modo edição ativado. Clique em um dia para editar.' : '🔒 Modo leitura ativado');
 }
 
-// ===== SENHA =====
 function exibirModalSenha() {
     return new Promise((resolve) => {
         const modalDiv = document.createElement('div');
@@ -855,7 +842,6 @@ function bloquear() {
     password = "";
 }
 
-// ===== SALVAMENTO COMPLETO =====
 async function salvarNoBackend() {
     if (!isEditing || isSaving) return;
     isSaving = true;
@@ -880,13 +866,11 @@ async function salvarNoBackend() {
             });
         });
 
-        // Coleta TODAS as células verdes
         const sugestoes = {};
         document.querySelectorAll('#tabelaHoras tbody .input-hora.sugestao').forEach(inp => {
             const key = obterChaveSugestao(inp);
             sugestoes[key] = true;
         });
-        // Atualiza o objeto global
         SUGESTOES_GLOBAIS = sugestoes;
 
         const payload = {
@@ -897,43 +881,23 @@ async function salvarNoBackend() {
             sugestoes: sugestoes
         };
 
-        console.log('💾 Salvando payload:', {
-            month,
-            year: anoAtual,
-            password: '***',
-            pilotos: Object.keys(logs).length,
-            sugestoes: Object.keys(sugestoes).length
-        });
-
         const resp = await fetch('/api/data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-
-        console.log(`📤 Status HTTP: ${resp.status}`);
         
-        // 🔧 Tratamento melhorado de erros
         let respData;
         const contentType = resp.headers.get('content-type');
         
         if (contentType && contentType.includes('application/json')) {
             respData = await resp.json();
         } else {
-            // Backend retornou HTML (erro 500)
-            const text = await resp.text();
-            console.error('❌ Backend retornou HTML ao invés de JSON:');
-            console.error(text.substring(0, 500));
-            throw new Error(`Erro no servidor (HTTP ${resp.status}). Verifique o console do servidor.`);
+            throw new Error(`Erro no servidor (HTTP ${resp.status}).`);
         }
         
-        if (!resp.ok) {
-            const erro = respData.erro || `HTTP ${resp.status}`;
-            throw new Error(erro);
-        }
-        
-        if (!respData.success) {
-            throw new Error(respData.erro || 'Erro desconhecido ao salvar');
+        if (!resp.ok || !respData.success) {
+            throw new Error(respData.erro || `HTTP ${resp.status}`);
         }
 
         localStorage.setItem('planilha_sugestoes', JSON.stringify(sugestoes));
@@ -944,22 +908,12 @@ async function salvarNoBackend() {
     } catch(e) {
         console.error('❌ ERRO AO SALVAR:', e);
         syncSpan.innerHTML = '❌ Erro ao salvar';
-        
-        // Mostra erro detalhado
-        let mensagem = e.message;
-        if (mensagem.includes('Unexpected token')) {
-            mensagem = 'Erro no servidor - retornou HTML ao invés de JSON. Verifique logs do servidor.';
-        } else if (mensagem.includes('Failed to fetch')) {
-            mensagem = 'Erro de conexão - servidor pode estar offline';
-        }
-        
-        showToast(`❌ ${mensagem}`, 5000);
+        showToast(`❌ ${e.message}`, 4000);
     } finally {
         isSaving = false;
     }
 }
 
-// ===== CARREGAR DO BACKEND =====
 async function carregarDoBackend() {
     const syncSpan = document.getElementById('syncStatus');
     syncSpan.innerHTML = '⏳ Carregando...';
@@ -974,15 +928,11 @@ async function carregarDoBackend() {
 
         LOGS = data.logs || {};
         
-        // 🔧 CORREÇÃO 1: CARREGAR SUGESTÕES PRIMEIRO (ANTES de criar os inputs)
         if (data.sugestoes) {
             SUGESTOES_GLOBAIS = data.sugestoes;
-            console.log('📥 Sugestões carregadas do backend:', SUGESTOES_GLOBAIS);
             localStorage.setItem('planilha_sugestoes', JSON.stringify(SUGESTOES_GLOBAIS));
         } else {
-            const localSugestoes = JSON.parse(localStorage.getItem('planilha_sugestoes') || '{}');
-            SUGESTOES_GLOBAIS = localSugestoes;
-            console.log('📥 Usando sugestões do localStorage:', SUGESTOES_GLOBAIS);
+            SUGESTOES_GLOBAIS = JSON.parse(localStorage.getItem('planilha_sugestoes') || '{}');
         }
 
         atualizarDias();
@@ -993,7 +943,7 @@ async function carregarDoBackend() {
             const diaNum = i + 1;
             const dataObj = new Date(anoAtual, mesNum-1, diaNum);
             const diaSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][dataObj.getDay()];
-            headerHtml += `<th>${String(diaNum).padStart(2,'00')} ${diaSemana}</th>`;
+            headerHtml += `<th>${String(diaNum).padStart(2,'0')}<br>${diaSemana}</th>`;
         }
         headerHtml += `<th>⭐ TOTAL</th></tr>`;
         thead.innerHTML = headerHtml;
@@ -1040,9 +990,8 @@ async function carregarDoBackend() {
 
                     const valorSalvo = (LOGS[p.name] && LOGS[p.name][i+1] !== undefined) ? LOGS[p.name][i+1] : null;
                     
-                    // 🔧 MOSTRAR VAZIO POR PADRÃO (usuário controla quando adicionar "0")
-                    if (valorSalvo !== null && valorSalvo !== 0) {
-                        inp.value = formatarHora(valorSalvo);
+                    if (valorSalvo !== null) {
+                        inp.value = valorSalvo === 0 ? '0' : formatarHora(valorSalvo);
                         if (valorSalvo > 0) total += valorSalvo;
                     } else {
                         inp.value = '';
@@ -1056,7 +1005,6 @@ async function carregarDoBackend() {
                         this.classList.remove('sugestao');
                         const key = obterChaveSugestao(this);
                         delete SUGESTOES_GLOBAIS[key];
-                        // 🔧 Atualiza cores enquanto digita
                         atualizarCorInput(this, SUGESTOES_GLOBAIS);
                         atualizarTotalLinha(row);
                         recalcularTudo();
@@ -1065,22 +1013,18 @@ async function carregarDoBackend() {
                     });
                     
                     inp.addEventListener('blur', function() {
+                        clearTimeout(this._saveTimer);
                         if (!isEditing || diaEditandoIndex !== i) return;
                         let v = parseHora(this.value);
                         
-                        // 🔧 Usuário controla quando adicionar "0"
                         if (v !== null && v < 0) {
-                            // Se digitou número negativo, converte para 0
                             v = 0;
                             this.value = '0';
                         } else if (v === null) {
-                            // Campo vazio permanece vazio
                             this.value = '';
                         } else if (v === 0) {
-                            // Se digitou "0", mantém "0" (usuário fez isso propositalmente)
                             this.value = '0';
                         } else {
-                            // Se digitou outro número, formata
                             this.value = formatarHora(v);
                         }
                         
@@ -1108,7 +1052,6 @@ async function carregarDoBackend() {
             }
         }
         
-        // 🔧 AGORA APLICA AS CORES (DEPOIS que inputs foram criados e sugestões já estão carregadas)
         aplicarSugestoesSalvas();
         recalcularTudo();
         criarBotoesDias();
@@ -1125,7 +1068,6 @@ async function carregarDoBackend() {
     }
 }
 
-// ===== BOTÕES DE DIAS (sem iniciais) =====
 function criarBotoesDias() {
     const container = document.getElementById('botoesDias');
     container.innerHTML = '';
@@ -1133,7 +1075,7 @@ function criarBotoesDias() {
         const btn = document.createElement('button');
         btn.classList.add('btn-dia');
         const diaNum = i + 1;
-        btn.innerHTML = `<span class="dia-num">${String(diaNum).padStart(2,'00')}</span><span class="dia-total"></span>`;
+        btn.innerHTML = `<span class="dia-num">${String(diaNum).padStart(2,'0')}</span><span class="dia-total"></span>`;
         btn.onclick = () => {
             document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-selecionado'));
             btn.classList.add('dia-selecionado');
@@ -1148,7 +1090,6 @@ function criarBotoesDias() {
     atualizarTotaisBotoesDias();
 }
 
-// ===== RANKING =====
 function mostrarRanking() {
     const mesAtual = document.getElementById('campoMes').value.trim() || "Julho";
     const pilotos = [];
@@ -1206,7 +1147,6 @@ function mostrarRanking() {
     modal.onclick = e => { if (e.target === modal) modal.remove(); };
 }
 
-// ===== AJUDA =====
 function mostrarAjuda() {
     const itens = [
         { cor: '#fff1b5', texto: 'Célula com fundo amarelo → possui horas lançadas (>0)' },
@@ -1228,7 +1168,6 @@ function mostrarAjuda() {
     modal.querySelector('#fecharAjuda').onclick = () => modal.remove();
 }
 
-// ===== NAVEGAÇÃO =====
 document.getElementById('btnMesAnterior').addEventListener('click', function() {
     if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
     sairEdicaoDia();
@@ -1261,7 +1200,6 @@ document.getElementById('campoMes').addEventListener('change', function() {
     carregarDoBackend();
 });
 
-// ===== INICIALIZAÇÃO =====
 document.getElementById('btnDesbloquear').onclick = login;
 document.getElementById('btnBloquear').onclick = bloquear;
 document.getElementById('btnSairDia').onclick = sairEdicaoDia;
@@ -1281,7 +1219,6 @@ if (dadosStorage) {
 }
 carregarDoBackend();
 
-// ===== SOCKET.IO (opcional) =====
 let socket = null;
 function iniciarSocket() {
     if (typeof io === 'undefined') return;
@@ -1313,9 +1250,10 @@ function iniciarSocket() {
             const inp = row.cells[day]?.querySelector('.input-hora');
             if (!inp) return;
             const v = Number(value);
-            if (isNaN(v) || v === 0) {
-                // 🔧 Se 0, mostrar vazio (usuário controla)
+            if (isNaN(v) || v === null) {
                 inp.value = '';
+            } else if (v === 0) {
+                inp.value = '0';
             } else {
                 inp.value = formatarHora(v);
             }
