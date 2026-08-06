@@ -753,7 +753,7 @@ function ativarEdicaoDia(diaIndex) {
     showToast(`✏️ Editando dia ${String(diaIndex + 1).padStart(2,'00')}`);
 }
 
-// ===== SAIR DA EDIÇÃO: NÃO REMOVE AS CORES VERDES =====
+// ===== SAIR DA EDIÇÃO =====
 function sairEdicaoDia() {
     if (diaEditandoIndex !== null) {
         document.querySelectorAll('#tabelaHoras tbody .input-hora')
@@ -767,7 +767,7 @@ function sairEdicaoDia() {
     }
 }
 
-// ===== PREENCHER VAZIOS: APLICA VERDE E SALVA =====
+// ===== PREENCHER VAZIOS =====
 function preencherVazios() {
     if (diaEditandoIndex === null) {
         showToast('⚠️ Selecione um dia primeiro.');
@@ -855,7 +855,7 @@ function bloquear() {
     password = "";
 }
 
-// ===== SALVAMENTO COMPLETO =====
+// ===== SALVAMENTO CORRIGIDO =====
 async function salvarNoBackend() {
     if (!isEditing || isSaving) return;
     isSaving = true;
@@ -880,14 +880,18 @@ async function salvarNoBackend() {
             });
         });
 
-        // Coleta TODAS as células verdes
+        // ===== CORREÇÃO: Força a coleta de TODAS as células verdes =====
         const sugestoes = {};
         document.querySelectorAll('#tabelaHoras tbody .input-hora.sugestao').forEach(inp => {
             const key = obterChaveSugestao(inp);
             sugestoes[key] = true;
         });
+
         // Atualiza o objeto global
         SUGESTOES_GLOBAIS = sugestoes;
+
+        console.log('💾 Enviando sugestões:', sugestoes);
+        console.log('💾 Total de células verdes:', Object.keys(sugestoes).length);
 
         const payload = {
             password,
@@ -897,43 +901,15 @@ async function salvarNoBackend() {
             sugestoes: sugestoes
         };
 
-        console.log('💾 Salvando payload:', {
-            month,
-            year: anoAtual,
-            password: '***',
-            pilotos: Object.keys(logs).length,
-            sugestoes: Object.keys(sugestoes).length
-        });
-
         const resp = await fetch('/api/data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
 
-        console.log(`📤 Status HTTP: ${resp.status}`);
-        
-        // 🔧 Tratamento melhorado de erros
-        let respData;
-        const contentType = resp.headers.get('content-type');
-        
-        if (contentType && contentType.includes('application/json')) {
-            respData = await resp.json();
-        } else {
-            // Backend retornou HTML (erro 500)
-            const text = await resp.text();
-            console.error('❌ Backend retornou HTML ao invés de JSON:');
-            console.error(text.substring(0, 500));
-            throw new Error(`Erro no servidor (HTTP ${resp.status}). Verifique o console do servidor.`);
-        }
-        
-        if (!resp.ok) {
-            const erro = respData.erro || `HTTP ${resp.status}`;
-            throw new Error(erro);
-        }
-        
-        if (!respData.success) {
-            throw new Error(respData.erro || 'Erro desconhecido ao salvar');
+        const respData = await resp.json();
+        if (!resp.ok || !respData.success) {
+            throw new Error(respData.erro || `HTTP ${resp.status}`);
         }
 
         localStorage.setItem('planilha_sugestoes', JSON.stringify(sugestoes));
@@ -942,18 +918,9 @@ async function salvarNoBackend() {
         setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
         showToast('✅ Dados salvos com sucesso!');
     } catch(e) {
-        console.error('❌ ERRO AO SALVAR:', e);
+        console.error(e);
         syncSpan.innerHTML = '❌ Erro ao salvar';
-        
-        // Mostra erro detalhado
-        let mensagem = e.message;
-        if (mensagem.includes('Unexpected token')) {
-            mensagem = 'Erro no servidor - retornou HTML ao invés de JSON. Verifique logs do servidor.';
-        } else if (mensagem.includes('Failed to fetch')) {
-            mensagem = 'Erro de conexão - servidor pode estar offline';
-        }
-        
-        showToast(`❌ ${mensagem}`, 5000);
+        showToast(`❌ Erro ao salvar: ${e.message}`, 4000);
     } finally {
         isSaving = false;
     }
@@ -974,7 +941,6 @@ async function carregarDoBackend() {
 
         LOGS = data.logs || {};
         
-        // 🔧 CORREÇÃO 1: CARREGAR SUGESTÕES PRIMEIRO (ANTES de criar os inputs)
         if (data.sugestoes) {
             SUGESTOES_GLOBAIS = data.sugestoes;
             console.log('📥 Sugestões carregadas do backend:', SUGESTOES_GLOBAIS);
@@ -1040,8 +1006,9 @@ async function carregarDoBackend() {
 
                     const valorSalvo = (LOGS[p.name] && LOGS[p.name][i+1] !== undefined) ? LOGS[p.name][i+1] : null;
                     
-                    // 🔧 MOSTRAR VAZIO POR PADRÃO (usuário controla quando adicionar "0")
-                    if (valorSalvo !== null && valorSalvo !== 0) {
+                    if (valorSalvo !== null && valorSalvo === 0) {
+                        inp.value = '';
+                    } else if (valorSalvo !== null) {
                         inp.value = formatarHora(valorSalvo);
                         if (valorSalvo > 0) total += valorSalvo;
                     } else {
@@ -1056,8 +1023,6 @@ async function carregarDoBackend() {
                         this.classList.remove('sugestao');
                         const key = obterChaveSugestao(this);
                         delete SUGESTOES_GLOBAIS[key];
-                        // 🔧 Atualiza cores enquanto digita
-                        atualizarCorInput(this, SUGESTOES_GLOBAIS);
                         atualizarTotalLinha(row);
                         recalcularTudo();
                         clearTimeout(this._saveTimer);
@@ -1067,23 +1032,15 @@ async function carregarDoBackend() {
                     inp.addEventListener('blur', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
                         let v = parseHora(this.value);
-                        
-                        // 🔧 Usuário controla quando adicionar "0"
                         if (v !== null && v < 0) {
-                            // Se digitou número negativo, converte para 0
                             v = 0;
-                            this.value = '0';
-                        } else if (v === null) {
-                            // Campo vazio permanece vazio
-                            this.value = '';
-                        } else if (v === 0) {
-                            // Se digitou "0", mantém "0" (usuário fez isso propositalmente)
-                            this.value = '0';
-                        } else {
-                            // Se digitou outro número, formata
                             this.value = formatarHora(v);
                         }
-                        
+                        if (v === null) {
+                            this.value = '';
+                        } else {
+                            this.value = formatarHora(v);
+                        }
                         atualizarCorInput(this, SUGESTOES_GLOBAIS);
                         atualizarTotalLinha(row);
                         recalcularTudo();
@@ -1107,8 +1064,6 @@ async function carregarDoBackend() {
                 tbody.appendChild(row);
             }
         }
-        
-        // 🔧 AGORA APLICA AS CORES (DEPOIS que inputs foram criados e sugestões já estão carregadas)
         aplicarSugestoesSalvas();
         recalcularTudo();
         criarBotoesDias();
@@ -1125,7 +1080,7 @@ async function carregarDoBackend() {
     }
 }
 
-// ===== BOTÕES DE DIAS (sem iniciais) =====
+// ===== BOTÕES DE DIAS =====
 function criarBotoesDias() {
     const container = document.getElementById('botoesDias');
     container.innerHTML = '';
@@ -1281,7 +1236,7 @@ if (dadosStorage) {
 }
 carregarDoBackend();
 
-// ===== SOCKET.IO (opcional) =====
+// ===== SOCKET.IO =====
 let socket = null;
 function iniciarSocket() {
     if (typeof io === 'undefined') return;
@@ -1313,8 +1268,7 @@ function iniciarSocket() {
             const inp = row.cells[day]?.querySelector('.input-hora');
             if (!inp) return;
             const v = Number(value);
-            if (isNaN(v) || v === 0) {
-                // 🔧 Se 0, mostrar vazio (usuário controla)
+            if (isNaN(v)) {
                 inp.value = '';
             } else {
                 inp.value = formatarHora(v);
