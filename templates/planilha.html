@@ -247,7 +247,6 @@
         }
         .input-hora::placeholder { color: #bbb; font-size: 0.65rem; }
         
-        /* Estados visuais */
         .input-hora.has-value { 
             background: #fff1b5; 
             border-color: #e4b149; 
@@ -302,7 +301,6 @@
             box-shadow: inset 0 1px 3px #ffdf9a, 0 2px 4px black;
         }
 
-        /* Modais */
         .modal-senha, .modal-detalhe, .modal-ajuda {
             position: fixed;
             top: 0;
@@ -441,7 +439,6 @@
 <div class="skeuo-container">
     <div class="planilha-card">
 
-        <!-- Cabeçalho -->
         <div class="cabecalho-skeuo">
             <div class="title-area">
                 <h1><i class="fas fa-plane-up"></i> REGISTRO DE HORAS</h1>
@@ -456,7 +453,6 @@
             </div>
         </div>
 
-        <!-- Ações -->
         <div class="top-actions">
             <div class="button-group">
                 <button class="btn-skeuo" id="btnDesbloquear">🔐 DESBLOQUEAR</button>
@@ -471,10 +467,8 @@
             </div>
         </div>
 
-        <!-- Dias (botões rápidos) -->
         <div class="dias-botoes" id="botoesDias"></div>
 
-        <!-- Tabela -->
         <div class="table-wrapper">
             <table class="planilha" id="tabelaHoras">
                 <thead id="tableHeader"></thead>
@@ -493,7 +487,7 @@
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
 // ===== TOAST =====
-function showToast(msg, duracao = 2500) {
+function showToast(msg, duracao = 2000) {
     let toast = document.getElementById('toast');
     if (!toast) {
         toast = document.createElement('div');
@@ -507,7 +501,7 @@ function showToast(msg, duracao = 2500) {
     toast._timer = setTimeout(() => toast.classList.remove('show'), duracao);
 }
 
-// ===== PERSISTÊNCIA DO MÊS E ANO =====
+// ===== PERSISTÊNCIA =====
 const MES_STORAGE_KEY = 'planilha_mes_ano';
 function salvarMesAno(mes, ano) {
     localStorage.setItem(MES_STORAGE_KEY, JSON.stringify({ mes, ano }));
@@ -523,6 +517,7 @@ let isEditing = false;
 let password = "";
 let diaEditandoIndex = null;
 let isSaving = false;
+let saveTimeout = null;
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 function getMesNumero(nomeMes) {
@@ -541,7 +536,6 @@ function atualizarDias() {
     return DIAS;
 }
 
-// ===== CORREÇÃO: parseHora com tratamento de vírgula =====
 function parseHora(v) {
     if (v === '' || v === null || v === undefined) return null;
     let limpo = String(v).trim().replace('h', '').replace('H', '').replace(',', '.').replace(/[^0-9.]/g, '');
@@ -565,6 +559,7 @@ function getGrupo(nome) {
 // ===== DADOS =====
 let LOGS = {};
 let SUGESTOES_GLOBAIS = {};
+let CORES_GLOBAIS = {};
 
 function getNomeFromRow(row) {
     if (row.dataset && row.dataset.pilot) return row.dataset.pilot;
@@ -574,7 +569,6 @@ function getNomeFromRow(row) {
     return nomeCell?.innerText.trim() || "";
 }
 
-// ===== LÓGICA DE COR =====
 function obterChaveSugestao(inp) {
     const pilot = inp.dataset.pilot;
     const dia = inp.dataset.dia;
@@ -625,7 +619,6 @@ function atualizarTotalLinha(row) {
     return soma;
 }
 
-// ===== STREAK (6 dias trabalhados → 7º laranja) =====
 function validarStreaks() {
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
         const inputs = row.querySelectorAll('.input-hora');
@@ -665,7 +658,6 @@ function validarStreaks() {
     });
 }
 
-// ===== CONTAGEM DE FOLGAS (baseada em células VAZIAS) =====
 function getLimiteDiasContagem() {
     const hoje = new Date();
     const mesReal = hoje.getMonth() + 1;
@@ -744,7 +736,6 @@ function atualizarTotaisBotoesDias() {
     });
 }
 
-// ===== EDIÇÃO POR COLUNA =====
 function ativarEdicaoDia(diaIndex) {
     if (!isEditing) {
         showToast("⚠️ Desbloqueie a planilha primeiro.");
@@ -771,7 +762,6 @@ function ativarEdicaoDia(diaIndex) {
     showToast(`✏️ Editando dia ${String(diaIndex + 1).padStart(2,'00')}`);
 }
 
-// ===== SAIR DA EDIÇÃO =====
 function sairEdicaoDia() {
     if (diaEditandoIndex !== null) {
         document.querySelectorAll('#tabelaHoras tbody .input-hora')
@@ -785,7 +775,6 @@ function sairEdicaoDia() {
     }
 }
 
-// ===== PREENCHER VAZIOS =====
 function preencherVazios() {
     if (diaEditandoIndex === null) {
         showToast('⚠️ Selecione um dia primeiro.');
@@ -820,7 +809,6 @@ function preencherVazios() {
     showToast(`🎨 ${count} células vazias destacadas em verde.`);
 }
 
-// ===== HABILITAR/DESABILITAR EDIÇÃO =====
 function setEditMode(enable) {
     isEditing = enable;
     if (!enable) {
@@ -838,7 +826,6 @@ function setEditMode(enable) {
     showToast(enable ? '✅ Modo edição ativado. Clique em um dia para editar.' : '🔒 Modo leitura ativado');
 }
 
-// ===== SENHA =====
 function exibirModalSenha() {
     return new Promise((resolve) => {
         const modalDiv = document.createElement('div');
@@ -881,9 +868,16 @@ function bloquear() {
     password = "";
 }
 
-// ===== SALVAMENTO COMPLETO COM CORES =====
+// ===== SALVAMENTO OTIMIZADO =====
 async function salvarNoBackend() {
     if (!isEditing || isSaving) return;
+    
+    // Cancela salvamento pendente
+    if (saveTimeout) {
+        clearTimeout(saveTimeout);
+        saveTimeout = null;
+    }
+    
     isSaving = true;
     const syncSpan = document.getElementById('syncStatus');
     syncSpan.innerHTML = '⏳ Salvando...';
@@ -909,18 +903,11 @@ async function salvarNoBackend() {
                     logs[nome][day] = null;
                 }
                 
-                let corAtual = '';
-                if (inp.classList.contains('sugestao')) {
-                    corAtual = '#d4edda';
-                } else if (inp.classList.contains('streak-day')) {
-                    corAtual = '#ffb366';
-                } else if (inp.classList.contains('has-value')) {
-                    corAtual = '#fff1b5';
-                } else if (inp.classList.contains('is-zero')) {
-                    corAtual = '#e0e0e0';
-                } else {
-                    corAtual = inp.style.backgroundColor || '';
-                }
+                let corAtual = inp.style.backgroundColor || '';
+                if (inp.classList.contains('sugestao')) corAtual = '#d4edda';
+                else if (inp.classList.contains('streak-day')) corAtual = '#ffb366';
+                else if (inp.classList.contains('has-value')) corAtual = '#fff1b5';
+                else if (inp.classList.contains('is-zero')) corAtual = '#e0e0e0';
                 
                 if (corAtual) {
                     cores[nome][day] = corAtual;
@@ -941,6 +928,7 @@ async function salvarNoBackend() {
         });
 
         SUGESTOES_GLOBAIS = sugestoes;
+        CORES_GLOBAIS = cores;
 
         const payload = {
             password,
@@ -950,9 +938,6 @@ async function salvarNoBackend() {
             sugestoes: sugestoes,
             cores: cores
         };
-
-        console.log('💾 Enviando sugestões:', sugestoes);
-        console.log('💾 Enviando cores:', cores);
 
         const resp = await fetch('/api/data', {
             method: 'POST',
@@ -970,17 +955,27 @@ async function salvarNoBackend() {
 
         syncSpan.innerHTML = '✅ Salvo';
         setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
-        showToast('✅ Dados salvos com sucesso!');
+        showToast('✅ Dados salvos!');
     } catch(e) {
         console.error(e);
-        syncSpan.innerHTML = '❌ Erro ao salvar';
-        showToast(`❌ Erro ao salvar: ${e.message}`, 4000);
+        syncSpan.innerHTML = '❌ Erro';
+        showToast(`❌ Erro: ${e.message}`, 3000);
     } finally {
         isSaving = false;
     }
 }
 
-// ===== FUNÇÃO PARA RESTAURAR CORES =====
+// Função para agendar salvamento (debounce)
+function agendarSalvamento() {
+    if (saveTimeout) {
+        clearTimeout(saveTimeout);
+    }
+    saveTimeout = setTimeout(() => {
+        salvarNoBackend();
+        saveTimeout = null;
+    }, 500);
+}
+
 function restaurarCores(cores) {
     if (!cores) return;
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
@@ -1015,6 +1010,7 @@ async function carregarDoBackend() {
 
         LOGS = data.logs || {};
         const CORES = data.cores || {};
+        CORES_GLOBAIS = CORES;
         
         localStorage.setItem('planilha_cores', JSON.stringify(CORES));
 
@@ -1034,7 +1030,11 @@ async function carregarDoBackend() {
         const tbody = document.getElementById('planilhaBody');
         tbody.innerHTML = '';
         const grupos = { "CESSNA 206/210":[], "CARAVAN":[], "COPILOTO":[] };
+        
+        // ===== FILTRO: REMOVER TESTE_AUTO =====
         data.pilots.forEach(p => {
+            if (p.name === "TESTE_AUTO") return; // Ignora o TESTE_AUTO
+            
             const grp = getGrupo(p.name);
             if (grupos[grp]) grupos[grp].push(p);
             else grupos["CESSNA 206/210"].push(p);
@@ -1044,7 +1044,6 @@ async function carregarDoBackend() {
             grupos[g].sort((a, b) => a.name.localeCompare(b.name));
         }
 
-        // ===== CORREÇÃO AQUI: Renderização correta dos títulos dos grupos =====
         for (let grupo of ["CESSNA 206/210","CARAVAN","COPILOTO"]) {
             const titleRow = document.createElement('tr');
             titleRow.classList.add('group-title-row');
@@ -1113,8 +1112,7 @@ async function carregarDoBackend() {
                         delete SUGESTOES_GLOBAIS[key];
                         atualizarTotalLinha(row);
                         recalcularTudo();
-                        clearTimeout(this._saveTimer);
-                        this._saveTimer = setTimeout(salvarNoBackend, 1000);
+                        agendarSalvamento(); // Usa o debounce
                     });
                     
                     inp.addEventListener('blur', function() {
@@ -1133,7 +1131,7 @@ async function carregarDoBackend() {
                         atualizarCorInput(this, SUGESTOES_GLOBAIS);
                         atualizarTotalLinha(row);
                         recalcularTudo();
-                        salvarNoBackend();
+                        salvarNoBackend(); // Salva imediatamente no blur
                     });
                     
                     inp.addEventListener('keydown', function(e) {
@@ -1170,7 +1168,6 @@ async function carregarDoBackend() {
     }
 }
 
-// ===== BOTÕES DE DIAS =====
 function criarBotoesDias() {
     const container = document.getElementById('botoesDias');
     container.innerHTML = '';
@@ -1193,7 +1190,6 @@ function criarBotoesDias() {
     atualizarTotaisBotoesDias();
 }
 
-// ===== RANKING =====
 function mostrarRanking() {
     const mesAtual = document.getElementById('campoMes').value.trim() || "Julho";
     const pilotos = [];
@@ -1251,7 +1247,6 @@ function mostrarRanking() {
     modal.onclick = e => { if (e.target === modal) modal.remove(); };
 }
 
-// ===== AJUDA =====
 function mostrarAjuda() {
     const itens = [
         { cor: '#fff1b5', texto: 'Célula com fundo amarelo → possui horas lançadas (>0)' },
@@ -1273,7 +1268,6 @@ function mostrarAjuda() {
     modal.querySelector('#fecharAjuda').onclick = () => modal.remove();
 }
 
-// ===== NAVEGAÇÃO =====
 document.getElementById('btnMesAnterior').addEventListener('click', function() {
     if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
     sairEdicaoDia();
@@ -1306,7 +1300,6 @@ document.getElementById('campoMes').addEventListener('change', function() {
     carregarDoBackend();
 });
 
-// ===== INICIALIZAÇÃO =====
 document.getElementById('btnDesbloquear').onclick = login;
 document.getElementById('btnBloquear').onclick = bloquear;
 document.getElementById('btnSairDia').onclick = sairEdicaoDia;
@@ -1326,7 +1319,6 @@ if (dadosStorage) {
 }
 carregarDoBackend();
 
-// ===== SOCKET.IO =====
 let socket = null;
 function iniciarSocket() {
     if (typeof io === 'undefined') return;
@@ -1372,4 +1364,4 @@ function iniciarSocket() {
 iniciarSocket();
 </script>
 </body>
-    </html>
+</html>
