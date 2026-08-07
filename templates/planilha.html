@@ -541,11 +541,15 @@ function atualizarDias() {
     return DIAS;
 }
 
+// ===== CORREÇÃO: parseHora com tratamento de vírgula =====
 function parseHora(v) {
     if (v === '' || v === null || v === undefined) return null;
-    let n = parseFloat(String(v).trim().replace(',','.'));
+    // Remove "h", "H" e substitui vírgula por ponto
+    let limpo = String(v).trim().replace('h', '').replace('H', '').replace(',', '.').replace(/[^0-9.]/g, '');
+    let n = parseFloat(limpo);
     return isNaN(n) ? null : n;
 }
+
 function formatarHora(n) { return n.toFixed(1).replace('.',','); }
 
 // ===== GRUPOS =====
@@ -1098,6 +1102,7 @@ async function carregarDoBackend() {
                     atualizarCorInput(inp, SUGESTOES_GLOBAIS);
                     inp.disabled = true;
 
+                    // ===== INPUT: salva automaticamente =====
                     inp.addEventListener('input', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
                         this.classList.remove('sugestao');
@@ -1109,18 +1114,26 @@ async function carregarDoBackend() {
                         this._saveTimer = setTimeout(salvarNoBackend, 1000);
                     });
                     
+                    // ===== CORREÇÃO: BLUR com tratamento de vírgula =====
                     inp.addEventListener('blur', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
-                        let v = parseHora(this.value);
-                        if (v !== null && v < 0) {
-                            v = 0;
-                            this.value = formatarHora(v);
-                        }
-                        if (v === null) {
+                        
+                        // Remove caracteres especiais e converte
+                        let valorRaw = this.value.trim().replace('h', '').replace('H', '').replace(',', '.').replace(/[^0-9.]/g, '');
+                        let v = parseFloat(valorRaw);
+                        
+                        if (isNaN(v) || v < 0) {
+                            v = null;
                             this.value = '';
                         } else {
                             this.value = formatarHora(v);
                         }
+                        
+                        // Atualiza o valor no objeto LOGS
+                        if (v !== null && v > 0) {
+                            // Já está atualizado
+                        }
+                        
                         atualizarCorInput(this, SUGESTOES_GLOBAIS);
                         atualizarTotalLinha(row);
                         recalcularTudo();
