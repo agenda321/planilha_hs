@@ -99,7 +99,7 @@ class FlightLog(db.Model):
     year = db.Column(db.Integer, nullable=False)
     hours = db.Column(db.Float, nullable=False, default=0.0)
     sugestoes = db.Column(db.JSON, nullable=False, default={})
-    cor = db.Column(db.String(20), nullable=True)  # <-- NOVO CAMPO
+    cor = db.Column(db.String(20), nullable=True)
     pilot = db.relationship("Pilot", backref=db.backref("flight_logs", lazy=True))
 
 print("✅ Modelos definidos")
@@ -112,6 +112,19 @@ def getNomeMes(num):
 
 def sala_do_mes(month, year):
     return f"{int(month)}-{int(year)}"
+
+def converter_para_float(valor):
+    """Converte string com vírgula para float - CORREÇÃO DO ERRO!"""
+    if valor is None or valor == "":
+        return None
+    # Remove "h", "H" e substitui vírgula por ponto
+    valor_str = str(valor).replace('h', '').replace('H', '').replace(',', '.').strip()
+    # Remove qualquer caractere que não seja número ou ponto
+    valor_str = re.sub(r'[^0-9.]', '', valor_str)
+    try:
+        return float(valor_str)
+    except ValueError:
+        return None
 
 # === TRATAMENTO DE ERROS GLOBAL ===
 @app.errorhandler(404)
@@ -179,7 +192,7 @@ def get_data():
         result = {
             "pilots": [{"name": p.name, "group": p.group, "full_name": p.full_name or p.name} for p in pilots],
             "logs": {},
-            "cores": {},  # <-- NOVO
+            "cores": {},
             "sugestoes": sugestoes_consolidadas
         }
 
@@ -187,11 +200,10 @@ def get_data():
             pilot_name = log.pilot.name
             if pilot_name not in result["logs"]:
                 result["logs"][pilot_name] = {}
-                result["cores"][pilot_name] = {}  # <-- NOVO
+                result["cores"][pilot_name] = {}
             
             result["logs"][pilot_name][log.day] = log.hours if log.hours is not None else 0.0
             
-            # <-- SALVA A COR
             if log.cor:
                 result["cores"][pilot_name][log.day] = log.cor
 
@@ -204,7 +216,7 @@ def get_data():
 
 @app.route("/api/data", methods=["POST"])
 def save_data():
-    """Versão OTIMIZADA com suporte a CORES"""
+    """Versão CORRIGIDA com tratamento de vírgula e suporte a cores"""
     print("🚨 POST /api/data CHAMADO!")
     try:
         data = request.get_json()
@@ -224,11 +236,10 @@ def save_data():
 
         logs_recebidos = data.get("logs", {})
         sugestoes_recebidas = data.get("sugestoes", {})
-        cores_recebidas = data.get("cores", {})  # <-- NOVO
+        cores_recebidas = data.get("cores", {})
         
         print(f"📥 RECEBIDO logs para {month}/{year}")
         print(f"📥 Pilotos no payload: {list(logs_recebidos.keys())}")
-        print(f"📥 Cores recebidas: {len(cores_recebidas)}")
 
         # Buscar todos os pilotos de uma vez
         pilotos_nomes = list(logs_recebidos.keys())
@@ -262,26 +273,23 @@ def save_data():
                 cor_key = f"{pilot_name}_{day}"
                 cor = cores_recebidas.get(cor_key)
                 
-                # Se hours for None ou vazio, marca para deletar
+                # ===== CORREÇÃO: Usa a função de conversão =====
                 if hours is None or hours == "":
                     if log:
                         logs_para_deletar.append(log)
                     continue
                 
-                try:
-                    valor_horas = float(hours)
-                except (ValueError, TypeError):
+                valor_horas = converter_para_float(hours)
+                if valor_horas is None:
                     print(f"⚠️ Valor inválido: {pilot_name} dia {day} = {hours}")
                     continue
                 
                 if log:
-                    # Atualiza existente
                     log.hours = valor_horas
                     if cor:
                         log.cor = cor
                     logs_para_atualizar.append(log)
                 else:
-                    # Cria novo
                     novo_log = FlightLog(
                         pilot_id=pilot.id,
                         day=day,
@@ -349,7 +357,6 @@ def save_data():
         total = len(logs_para_adicionar) + len(logs_para_atualizar)
         print(f"✅ Commit realizado! {total} logs salvos para {month}/{year}")
 
-        # EMITE O AVISO EM TEMPO REAL
         socketio.emit(
             "data_updated", 
             {"month": month, "year": year}, 
