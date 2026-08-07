@@ -589,12 +589,15 @@ function atualizarCorInput(inp, sugestoes) {
         const key = obterChaveSugestao(inp);
         if (sugestoes && sugestoes[key]) {
             inp.classList.add('sugestao');
+            inp.style.backgroundColor = '#d4edda';
         }
         return;
     } else if (valor === 0) {
         inp.classList.add('is-zero');
+        inp.style.backgroundColor = '#e0e0e0';
     } else if (valor > 0) {
         inp.classList.add('has-value');
+        inp.style.backgroundColor = '#fff1b5';
     } else {
         inp.style.color = 'red';
         inp.style.borderColor = 'red';
@@ -643,7 +646,20 @@ function validarStreaks() {
             } else { streak = 0; }
             i++;
         }
-        inputs.forEach((inp, idx) => inp.classList.toggle('streak-day', seq[idx]));
+        inputs.forEach((inp, idx) => {
+            if (seq[idx]) {
+                inp.classList.add('streak-day');
+                inp.style.backgroundColor = '#ffb366';
+            } else {
+                inp.classList.remove('streak-day');
+                // Restaura a cor original se não for streak
+                if (!inp.classList.contains('has-value') && 
+                    !inp.classList.contains('is-zero') && 
+                    !inp.classList.contains('sugestao')) {
+                    inp.style.backgroundColor = '';
+                }
+            }
+        });
     });
 }
 
@@ -781,6 +797,7 @@ function preencherVazios() {
         const valor = parseHora(inp.value);
         if (valor === null) {
             inp.classList.add('sugestao');
+            inp.style.backgroundColor = '#d4edda';
             const key = obterChaveSugestao(inp);
             SUGESTOES_GLOBAIS[key] = true;
             count++;
@@ -788,6 +805,14 @@ function preencherVazios() {
             inp.classList.remove('sugestao');
             const key = obterChaveSugestao(inp);
             delete SUGESTOES_GLOBAIS[key];
+            // Restaura a cor baseada no valor
+            if (valor > 0) {
+                inp.style.backgroundColor = '#fff1b5';
+                inp.classList.add('has-value');
+            } else if (valor === 0) {
+                inp.style.backgroundColor = '#e0e0e0';
+                inp.classList.add('is-zero');
+            }
         }
     });
     salvarNoBackend();
@@ -855,7 +880,7 @@ function bloquear() {
     password = "";
 }
 
-// ===== SALVAMENTO CORRIGIDO =====
+// ===== SALVAMENTO COMPLETO COM CORES =====
 async function salvarNoBackend() {
     if (!isEditing || isSaving) return;
     isSaving = true;
@@ -866,40 +891,69 @@ async function salvarNoBackend() {
         const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
         const month = getMesNumero(mesNome);
         const logs = {};
+        const cores = {};
 
         document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
             const nome = getNomeFromRow(row);
             logs[nome] = {};
+            cores[nome] = {};
             row.querySelectorAll('.input-hora').forEach((inp, i) => {
+                const day = i + 1;
                 const v = parseHora(inp.value);
-                if (v !== null) {
-                    logs[nome][i+1] = v;
+                if (v !== null && v > 0) {
+                    logs[nome][day] = v;
+                } else if (v === 0) {
+                    logs[nome][day] = 0;
                 } else {
-                    logs[nome][i+1] = null;
+                    logs[nome][day] = null;
+                }
+                
+                // Captura a cor atual
+                let corAtual = '';
+                if (inp.classList.contains('sugestao')) {
+                    corAtual = '#d4edda';
+                } else if (inp.classList.contains('streak-day')) {
+                    corAtual = '#ffb366';
+                } else if (inp.classList.contains('has-value')) {
+                    corAtual = '#fff1b5';
+                } else if (inp.classList.contains('is-zero')) {
+                    corAtual = '#e0e0e0';
+                } else {
+                    corAtual = inp.style.backgroundColor || '';
+                }
+                
+                if (corAtual) {
+                    cores[nome][day] = corAtual;
                 }
             });
         });
 
-        // ===== CORREÇÃO: Força a coleta de TODAS as células verdes =====
+        // Força a coleta de TODAS as células verdes
         const sugestoes = {};
         document.querySelectorAll('#tabelaHoras tbody .input-hora.sugestao').forEach(inp => {
             const key = obterChaveSugestao(inp);
             sugestoes[key] = true;
+            const pilot = inp.dataset.pilot;
+            const dia = parseInt(inp.dataset.dia);
+            if (pilot && dia) {
+                if (!cores[pilot]) cores[pilot] = {};
+                cores[pilot][dia] = '#d4edda';
+            }
         });
 
-        // Atualiza o objeto global
         SUGESTOES_GLOBAIS = sugestoes;
-
-        console.log('💾 Enviando sugestões:', sugestoes);
-        console.log('💾 Total de células verdes:', Object.keys(sugestoes).length);
 
         const payload = {
             password,
             logs,
             month,
             year: anoAtual,
-            sugestoes: sugestoes
+            sugestoes: sugestoes,
+            cores: cores
         };
+
+        console.log('💾 Enviando sugestões:', sugestoes);
+        console.log('💾 Enviando cores:', cores);
 
         const resp = await fetch('/api/data', {
             method: 'POST',
@@ -913,6 +967,7 @@ async function salvarNoBackend() {
         }
 
         localStorage.setItem('planilha_sugestoes', JSON.stringify(sugestoes));
+        localStorage.setItem('planilha_cores', JSON.stringify(cores));
 
         syncSpan.innerHTML = '✅ Salvo';
         setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
@@ -924,6 +979,27 @@ async function salvarNoBackend() {
     } finally {
         isSaving = false;
     }
+}
+
+// ===== FUNÇÃO PARA RESTAURAR CORES =====
+function restaurarCores(cores) {
+    if (!cores) return;
+    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+        const nome = getNomeFromRow(row);
+        if (!cores[nome]) return;
+        row.querySelectorAll('.input-hora').forEach((inp, i) => {
+            const day = i + 1;
+            if (cores[nome][day]) {
+                const cor = cores[nome][day];
+                inp.style.backgroundColor = cor;
+                // Mantém as classes visuais
+                if (cor === '#fff1b5') inp.classList.add('has-value');
+                else if (cor === '#e0e0e0') inp.classList.add('is-zero');
+                else if (cor === '#d4edda') inp.classList.add('sugestao');
+                else if (cor === '#ffb366') inp.classList.add('streak-day');
+            }
+        });
+    });
 }
 
 // ===== CARREGAR DO BACKEND =====
@@ -940,16 +1016,10 @@ async function carregarDoBackend() {
         if (!data.pilots || !data.logs) throw new Error('Resposta incompleta');
 
         LOGS = data.logs || {};
+        const CORES = data.cores || {};
         
-        if (data.sugestoes) {
-            SUGESTOES_GLOBAIS = data.sugestoes;
-            console.log('📥 Sugestões carregadas do backend:', SUGESTOES_GLOBAIS);
-            localStorage.setItem('planilha_sugestoes', JSON.stringify(SUGESTOES_GLOBAIS));
-        } else {
-            const localSugestoes = JSON.parse(localStorage.getItem('planilha_sugestoes') || '{}');
-            SUGESTOES_GLOBAIS = localSugestoes;
-            console.log('📥 Usando sugestões do localStorage:', SUGESTOES_GLOBAIS);
-        }
+        // Salva as cores no localStorage
+        localStorage.setItem('planilha_cores', JSON.stringify(CORES));
 
         atualizarDias();
 
@@ -1015,6 +1085,16 @@ async function carregarDoBackend() {
                         inp.value = '';
                     }
                     
+                    // Restaura a cor salva
+                    const corSalva = (CORES[p.name] && CORES[p.name][i+1]) ? CORES[p.name][i+1] : null;
+                    if (corSalva) {
+                        inp.style.backgroundColor = corSalva;
+                        if (corSalva === '#fff1b5') inp.classList.add('has-value');
+                        else if (corSalva === '#e0e0e0') inp.classList.add('is-zero');
+                        else if (corSalva === '#d4edda') inp.classList.add('sugestao');
+                        else if (corSalva === '#ffb366') inp.classList.add('streak-day');
+                    }
+                    
                     atualizarCorInput(inp, SUGESTOES_GLOBAIS);
                     inp.disabled = true;
 
@@ -1065,6 +1145,7 @@ async function carregarDoBackend() {
             }
         }
         aplicarSugestoesSalvas();
+        restaurarCores(CORES);
         recalcularTudo();
         criarBotoesDias();
         setEditMode(false);
@@ -1282,4 +1363,4 @@ function iniciarSocket() {
 iniciarSocket();
 </script>
 </body>
-                        </html>
+</html>
