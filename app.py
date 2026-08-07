@@ -340,6 +340,164 @@ def debug_pilots():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ========================
+# 🔧 ROTAS DE TESTE COMPLETAS
+# ========================
+
+@app.route("/test-db")
+def test_db():
+    """Teste completo de conexão e dados no Supabase"""
+    try:
+        resultado = {
+            "status": "OK",
+            "conexao": False,
+            "tabelas": {},
+            "pilotos": 0,
+            "logs": 0,
+            "ultimos_logs": []
+        }
+        
+        # 1. Testa conexão
+        db.session.execute("SELECT 1")
+        resultado["conexao"] = True
+        
+        # 2. Conta pilotos
+        resultado["pilotos"] = Pilot.query.count()
+        
+        # 3. Conta logs
+        resultado["logs"] = FlightLog.query.count()
+        
+        # 4. Últimos 5 logs
+        ultimos = FlightLog.query.order_by(FlightLog.id.desc()).limit(5).all()
+        for log in ultimos:
+            resultado["ultimos_logs"].append({
+                "id": log.id,
+                "piloto": log.pilot.name if log.pilot else "N/A",
+                "dia": log.day,
+                "mes": log.month,
+                "ano": log.year,
+                "horas": log.hours
+            })
+        
+        # 5. Lista tabelas existentes
+        tabelas = db.session.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public'
+        """).fetchall()
+        resultado["tabelas"]["public"] = [t[0] for t in tabelas]
+        
+        return jsonify(resultado)
+        
+    except Exception as e:
+        return jsonify({
+            "status": "ERRO",
+            "erro": str(e),
+            "tipo": type(e).__name__
+        }), 500
+
+@app.route("/test-insert")
+def test_insert():
+    """Testa inserção de dados no Supabase"""
+    try:
+        from datetime import datetime
+        
+        # 1. Cria piloto de teste
+        pilot = Pilot.query.filter_by(name="TESTE_AUTO").first()
+        if not pilot:
+            pilot = Pilot(
+                name="TESTE_AUTO",
+                full_name="Teste Automático",
+                group="TESTE"
+            )
+            db.session.add(pilot)
+            db.session.commit()
+            print("✅ Piloto de teste criado")
+        
+        # 2. Insere log de teste
+        now = datetime.now()
+        log = FlightLog(
+            pilot_id=pilot.id,
+            day=now.day,
+            month=now.month,
+            year=now.year,
+            hours=8.5,
+            sugestoes={"teste": True}
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        # 3. Busca o log inserido
+        log_inserido = FlightLog.query.filter_by(
+            pilot_id=pilot.id,
+            day=now.day,
+            month=now.month,
+            year=now.year
+        ).first()
+        
+        return jsonify({
+            "status": "SUCESSO",
+            "mensagem": "Dados inseridos com sucesso!",
+            "piloto": {
+                "id": pilot.id,
+                "nome": pilot.name,
+                "grupo": pilot.group
+            },
+            "log": {
+                "id": log_inserido.id if log_inserido else None,
+                "dia": now.day,
+                "mes": now.month,
+                "ano": now.year,
+                "horas": 8.5
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "status": "ERRO",
+            "erro": str(e),
+            "tipo": type(e).__name__
+        }), 500
+
+@app.route("/test-supabase")
+def test_supabase():
+    """Teste específico para Supabase"""
+    try:
+        # 1. Verifica se é Supabase
+        is_supabase = "supabase" in app.config["SQLALCHEMY_DATABASE_URI"].lower()
+        
+        # 2. Tenta listar tabelas do schema
+        tabelas = db.session.execute("""
+            SELECT tablename 
+            FROM pg_tables 
+            WHERE schemaname = 'public'
+        """).fetchall()
+        
+        # 3. Testa comando específico do Supabase
+        try:
+            db.session.execute("SELECT current_database()")
+            db_name = "OK"
+        except:
+            db_name = "ERRO"
+        
+        return jsonify({
+            "supabase_detectado": is_supabase,
+            "tabelas_public": [t[0] for t in tabelas],
+            "database": db_name,
+            "versao_postgres": db.session.execute("SELECT version()").fetchone()[0][:100]
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "status": "ERRO",
+            "erro": str(e)
+        }), 500
+
+# ========================
+# FIM DAS ROTAS DE TESTE
+# ========================
+
 # === POPULAR BANCO INICIAL ===
 def povoar_dados_iniciais():
     grupos = {
