@@ -275,6 +275,13 @@
             box-shadow: 0 0 0 4px rgba(255,170,0,0.3);
             background: #fff8e0 !important;
         }
+        .input-hora.saving {
+            background: #ffd699 !important;
+            border-color: #ff9900 !important;
+            animation: pulse 0.6s infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+
         .total-cell { background: #e7dbbc; font-weight: bold; font-size: 0.8rem; }
         .group-title-row td {
             background: linear-gradient(135deg, #ccaa7a, #b1834d);
@@ -537,6 +544,8 @@ let isEditing = false;
 let password = "";
 let diaEditandoIndex = null;
 let isSaving = false;
+let saveRetries = 0;
+const MAX_RETRIES = 3;
 
 function diasNoMes(mesNum, ano) {
     return new Date(ano, mesNum, 0).getDate();
@@ -837,63 +846,77 @@ function bloquear() {
     password = "";
 }
 
-// ===== BACKEND (API) =====
+// ===== BACKEND (API) - CORRIGIDO =====
 async function salvarNoBackend() {
     if (!isEditing || isSaving) return;
     isSaving = true;
+    saveRetries = 0;
     const syncSpan = document.getElementById('syncStatus');
     syncSpan.innerHTML = '⏳ Salvando...';
 
-    try {
-        const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
-        const month = getMesNumero(mesNome);
-        const logs = {};
+    const tentarSalvar = async () => {
+        try {
+            const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
+            const month = getMesNumero(mesNome);
+            const logs = {};
 
-        document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
-            const nome = getNomeFromRow(row);
-            logs[nome] = {};
-            row.querySelectorAll('.input-hora').forEach((inp, i) => {
-                const day = i + 1;
-                const v = parseHora(inp.value);
-                logs[nome][day] = (v !== null && v > 0) ? v : null;
+            document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+                const nome = getNomeFromRow(row);
+                logs[nome] = {};
+                row.querySelectorAll('.input-hora').forEach((inp, i) => {
+                    const day = i + 1;
+                    const v = parseHora(inp.value);
+                    // ✅ FIX: Salvar 0 como 0, não como null
+                    logs[nome][day] = v;
+                });
             });
-        });
 
-        const sugestoes = {};
-        document.querySelectorAll('#tabelaHoras tbody .input-hora.sugestao').forEach(inp => {
-            const key = obterChaveSugestao(inp);
-            sugestoes[key] = true;
-        });
-        SUGESTOES_GLOBAIS = sugestoes;
+            const sugestoes = {};
+            document.querySelectorAll('#tabelaHoras tbody .input-hora.sugestao').forEach(inp => {
+                const key = obterChaveSugestao(inp);
+                sugestoes[key] = true;
+            });
+            SUGESTOES_GLOBAIS = sugestoes;
 
-        const payload = {
-            password,
-            logs,
-            month,
-            year: anoAtual,
-            sugestoes: sugestoes
-        };
+            const payload = {
+                password,
+                logs,
+                month,
+                year: anoAtual,
+                sugestoes: sugestoes
+            };
 
-        const resp = await fetch('/api/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+            const resp = await fetch('/api/data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: AbortSignal.timeout(5000)
+            });
 
-        const respData = await resp.json();
-        if (!resp.ok || !respData.success) throw new Error(respData.erro || `HTTP ${resp.status}`);
+            const respData = await resp.json();
+            if (!resp.ok || !respData.success) throw new Error(respData.erro || `HTTP ${resp.status}`);
 
-        localStorage.setItem('planilha_sugestoes', JSON.stringify(sugestoes));
-        syncSpan.innerHTML = '✅ Salvo';
-        setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
-        showToast('✅ Dados salvos!');
-    } catch(e) {
-        console.error(e);
-        syncSpan.innerHTML = '❌ Erro';
-        showToast(`❌ Erro: ${e.message}`, 3000);
-    } finally {
-        isSaving = false;
-    }
+            localStorage.setItem('planilha_sugestoes', JSON.stringify(sugestoes));
+            syncSpan.innerHTML = '✅ Salvo';
+            setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
+            showToast('✅ Dados salvos com sucesso!');
+            isSaving = false;
+        } catch(e) {
+            console.error('Erro ao salvar:', e);
+            saveRetries++;
+            
+            if (saveRetries < MAX_RETRIES) {
+                syncSpan.innerHTML = `⏳ Retry ${saveRetries}/${MAX_RETRIES}...`;
+                setTimeout(tentarSalvar, 2000);
+            } else {
+                syncSpan.innerHTML = '❌ Erro ao salvar';
+                showToast(`❌ Falha ao salvar após ${MAX_RETRIES} tentativas. Verifique a conexão.`, 5000);
+                isSaving = false;
+            }
+        }
+    };
+
+    tentarSalvar();
 }
 
 async function carregarDoBackend() {
@@ -903,7 +926,7 @@ async function carregarDoBackend() {
         const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
         const mesNum = getMesNumero(mesNome);
         const url = `/api/data?month=${mesNum}&year=${anoAtual}`;
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (!data.pilots || !data.logs) throw new Error('Resposta incompleta');
@@ -931,7 +954,7 @@ async function carregarDoBackend() {
         const grupos = { "CESSNA 206/210":[], "CARAVAN":[], "COPILOTO":[] };
         
         data.pilots.forEach(p => {
-            if (p.name === "TESTE_AUTO") return; // REMOÇÃO DO TESTE
+            if (p.name === "TESTE_AUTO") return;
             const grp = getGrupo(p.name);
             if (grupos[grp]) grupos[grp].push(p);
             else grupos["CESSNA 206/210"].push(p);
@@ -973,10 +996,11 @@ async function carregarDoBackend() {
                     inp.dataset.pilot = p.name;
                     inp.dataset.dia = i + 1;
 
+                    // ✅ FIX: Carregar valores corretamente, incluindo 0
                     const valorSalvo = (LOGS[p.name] && LOGS[p.name][i+1] !== undefined) ? LOGS[p.name][i+1] : null;
-                    if (valorSalvo !== null && valorSalvo === 0) {
-                        inp.value = '';
-                    } else if (valorSalvo !== null) {
+                    if (valorSalvo === 0) {
+                        inp.value = '0';
+                    } else if (valorSalvo !== null && valorSalvo > 0) {
                         inp.value = formatarHora(valorSalvo);
                     } else {
                         inp.value = '';
@@ -988,6 +1012,7 @@ async function carregarDoBackend() {
                     // ===== EVENTOS CORRIGIDOS =====
                     inp.addEventListener('input', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
+                        this.classList.remove('saving');
                         this.classList.remove('sugestao');
                         const key = obterChaveSugestao(this);
                         delete SUGESTOES_GLOBAIS[key];
@@ -1001,12 +1026,14 @@ async function carregarDoBackend() {
                         if (v === null || v < 0) {
                             v = null; this.value = '';
                         } else {
-                            this.value = formatarHora(v);
+                            this.value = v === 0 ? '0' : formatarHora(v);
                         }
                         atualizarCorInput(this, SUGESTOES_GLOBAIS);
                         atualizarTotalLinha(row);
                         recalcularTudo();
-                        salvarNoBackend(); // ÚNICO salvamento
+                        this.classList.add('saving');
+                        salvarNoBackend();
+                        setTimeout(() => this.classList.remove('saving'), 1500);
                     });
                     
                     inp.addEventListener('keydown', function(e) {
@@ -1222,7 +1249,7 @@ function iniciarSocket() {
             const inp = row.cells[day]?.querySelector('.input-hora');
             if (!inp) return;
             const v = Number(value);
-            inp.value = isNaN(v) ? '' : formatarHora(v);
+            inp.value = (isNaN(v) || v === null) ? '' : (v === 0 ? '0' : formatarHora(v));
             atualizarCorInput(inp, SUGESTOES_GLOBAIS);
             atualizarTotalLinha(row);
         });
