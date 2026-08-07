@@ -544,7 +544,6 @@ function atualizarDias() {
 // ===== CORREÇÃO: parseHora com tratamento de vírgula =====
 function parseHora(v) {
     if (v === '' || v === null || v === undefined) return null;
-    // Remove "h", "H" e substitui vírgula por ponto
     let limpo = String(v).trim().replace('h', '').replace('H', '').replace(',', '.').replace(/[^0-9.]/g, '');
     let n = parseFloat(limpo);
     return isNaN(n) ? null : n;
@@ -656,7 +655,6 @@ function validarStreaks() {
                 inp.style.backgroundColor = '#ffb366';
             } else {
                 inp.classList.remove('streak-day');
-                // Restaura a cor original se não for streak
                 if (!inp.classList.contains('has-value') && 
                     !inp.classList.contains('is-zero') && 
                     !inp.classList.contains('sugestao')) {
@@ -809,7 +807,6 @@ function preencherVazios() {
             inp.classList.remove('sugestao');
             const key = obterChaveSugestao(inp);
             delete SUGESTOES_GLOBAIS[key];
-            // Restaura a cor baseada no valor
             if (valor > 0) {
                 inp.style.backgroundColor = '#fff1b5';
                 inp.classList.add('has-value');
@@ -912,7 +909,6 @@ async function salvarNoBackend() {
                     logs[nome][day] = null;
                 }
                 
-                // Captura a cor atual
                 let corAtual = '';
                 if (inp.classList.contains('sugestao')) {
                     corAtual = '#d4edda';
@@ -932,7 +928,6 @@ async function salvarNoBackend() {
             });
         });
 
-        // Força a coleta de TODAS as células verdes
         const sugestoes = {};
         document.querySelectorAll('#tabelaHoras tbody .input-hora.sugestao').forEach(inp => {
             const key = obterChaveSugestao(inp);
@@ -996,7 +991,6 @@ function restaurarCores(cores) {
             if (cores[nome][day]) {
                 const cor = cores[nome][day];
                 inp.style.backgroundColor = cor;
-                // Mantém as classes visuais
                 if (cor === '#fff1b5') inp.classList.add('has-value');
                 else if (cor === '#e0e0e0') inp.classList.add('is-zero');
                 else if (cor === '#d4edda') inp.classList.add('sugestao');
@@ -1022,7 +1016,6 @@ async function carregarDoBackend() {
         LOGS = data.logs || {};
         const CORES = data.cores || {};
         
-        // Salva as cores no localStorage
         localStorage.setItem('planilha_cores', JSON.stringify(CORES));
 
         atualizarDias();
@@ -1051,15 +1044,27 @@ async function carregarDoBackend() {
             grupos[g].sort((a, b) => a.name.localeCompare(b.name));
         }
 
+        // ===== CORREÇÃO AQUI: Renderização correta dos títulos dos grupos =====
         for (let grupo of ["CESSNA 206/210","CARAVAN","COPILOTO"]) {
             const titleRow = document.createElement('tr');
             titleRow.classList.add('group-title-row');
+            
+            const td = document.createElement('td');
+            td.colSpan = DIAS + 2;
+            
             let iconClass = "fa-plane-up";
             if (grupo === "CARAVAN") iconClass = "fa-plane-departure";
             if (grupo === "COPILOTO") iconClass = "fa-user-pilot";
             
-            titleRow.innerHTML = `<td colspan="${DIAS+2}"><i class="fas ${iconClass}"></i> ${grupo}</td>`;
+            const icon = document.createElement('i');
+            icon.className = `fas ${iconClass}`;
+            icon.style.marginRight = '8px';
+            
+            td.appendChild(icon);
+            td.appendChild(document.createTextNode(` ${grupo}`));
+            titleRow.appendChild(td);
             tbody.appendChild(titleRow);
+            
             for (let p of grupos[grupo]) {
                 const row = document.createElement('tr');
                 row.classList.add('membro-row');
@@ -1089,7 +1094,6 @@ async function carregarDoBackend() {
                         inp.value = '';
                     }
                     
-                    // Restaura a cor salva
                     const corSalva = (CORES[p.name] && CORES[p.name][i+1]) ? CORES[p.name][i+1] : null;
                     if (corSalva) {
                         inp.style.backgroundColor = corSalva;
@@ -1102,7 +1106,6 @@ async function carregarDoBackend() {
                     atualizarCorInput(inp, SUGESTOES_GLOBAIS);
                     inp.disabled = true;
 
-                    // ===== INPUT: salva automaticamente =====
                     inp.addEventListener('input', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
                         this.classList.remove('sugestao');
@@ -1114,11 +1117,9 @@ async function carregarDoBackend() {
                         this._saveTimer = setTimeout(salvarNoBackend, 1000);
                     });
                     
-                    // ===== CORREÇÃO: BLUR com tratamento de vírgula =====
                     inp.addEventListener('blur', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
                         
-                        // Remove caracteres especiais e converte
                         let valorRaw = this.value.trim().replace('h', '').replace('H', '').replace(',', '.').replace(/[^0-9.]/g, '');
                         let v = parseFloat(valorRaw);
                         
@@ -1127,11 +1128,6 @@ async function carregarDoBackend() {
                             this.value = '';
                         } else {
                             this.value = formatarHora(v);
-                        }
-                        
-                        // Atualiza o valor no objeto LOGS
-                        if (v !== null && v > 0) {
-                            // Já está atualizado
                         }
                         
                         atualizarCorInput(this, SUGESTOES_GLOBAIS);
@@ -1376,4 +1372,4 @@ function iniciarSocket() {
 iniciarSocket();
 </script>
 </body>
-</html>
+    </html>
