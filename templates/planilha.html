@@ -486,7 +486,7 @@
 
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
-// ===== TOAST =====
+// ===== UTILITÁRIOS =====
 function showToast(msg, duracao = 2000) {
     let toast = document.getElementById('toast');
     if (!toast) {
@@ -501,7 +501,19 @@ function showToast(msg, duracao = 2000) {
     toast._timer = setTimeout(() => toast.classList.remove('show'), duracao);
 }
 
-// ===== PERSISTÊNCIA =====
+function parseHora(v) {
+    if (v === '' || v === null || v === undefined) return null;
+    let limpo = String(v).trim().replace('h', '').replace('H', '').replace(',', '.').replace(/[^0-9.]/g, '');
+    let n = parseFloat(limpo);
+    return isNaN(n) ? null : n;
+}
+
+function formatarHora(n) { 
+    if (n === null || isNaN(n)) return ''; 
+    return n.toFixed(1).replace('.',','); 
+}
+
+// ===== PERSISTÊNCIA LOCAL =====
 const MES_STORAGE_KEY = 'planilha_mes_ano';
 function salvarMesAno(mes, ano) {
     localStorage.setItem(MES_STORAGE_KEY, JSON.stringify({ mes, ano }));
@@ -511,19 +523,20 @@ function obterMesAno() {
     return data ? JSON.parse(data) : null;
 }
 
-let DIAS = 31;
-let anoAtual = new Date().getFullYear();
-let isEditing = false;
-let password = "";
-let diaEditandoIndex = null;
-let isSaving = false;
-
+// ===== CONFIGURAÇÃO =====
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 function getMesNumero(nomeMes) {
     const mapa = { "janeiro":1, "fevereiro":2, "março":3, "abril":4, "maio":5, "junho":6, "julho":7, "agosto":8, "setembro":9, "outubro":10, "novembro":11, "dezembro":12 };
     return mapa[nomeMes.toLowerCase()] || new Date().getMonth() + 1;
 }
 function getNomeMes(num) { return MESES[num-1] || "Julho"; }
+
+let DIAS = 31;
+let anoAtual = new Date().getFullYear();
+let isEditing = false;
+let password = "";
+let diaEditandoIndex = null;
+let isSaving = false;
 
 function diasNoMes(mesNum, ano) {
     return new Date(ano, mesNum, 0).getDate();
@@ -534,15 +547,6 @@ function atualizarDias() {
     DIAS = diasNoMes(mesNum, anoAtual);
     return DIAS;
 }
-
-function parseHora(v) {
-    if (v === '' || v === null || v === undefined) return null;
-    let limpo = String(v).trim().replace('h', '').replace('H', '').replace(',', '.').replace(/[^0-9.]/g, '');
-    let n = parseFloat(limpo);
-    return isNaN(n) ? null : n;
-}
-
-function formatarHora(n) { return n.toFixed(1).replace('.',','); }
 
 // ===== GRUPOS =====
 const GRUPOS_PILOTO = {
@@ -555,10 +559,9 @@ function getGrupo(nome) {
     return "CESSNA 206/210";
 }
 
-// ===== DADOS =====
+// ===== DADOS GLOBAIS =====
 let LOGS = {};
 let SUGESTOES_GLOBAIS = {};
-let CORES_GLOBAIS = {};
 
 function getNomeFromRow(row) {
     if (row.dataset && row.dataset.pilot) return row.dataset.pilot;
@@ -575,36 +578,26 @@ function obterChaveSugestao(inp) {
     return `${mes}_${anoAtual}_${pilot}_${dia}`;
 }
 
+// ===== RENDERIZAÇÃO DE ESTILOS E TOTAIS =====
 function atualizarCorInput(inp, sugestoes) {
     const valor = parseHora(inp.value);
     inp.classList.remove('has-value', 'is-zero', 'sugestao');
-    inp.style.color = '';
-    inp.style.borderColor = '';
 
     if (valor === null) {
         const key = obterChaveSugestao(inp);
         if (sugestoes && sugestoes[key]) {
             inp.classList.add('sugestao');
             inp.style.backgroundColor = '#d4edda';
+        } else {
+            inp.style.backgroundColor = '';
         }
-        return;
     } else if (valor === 0) {
         inp.classList.add('is-zero');
         inp.style.backgroundColor = '#e0e0e0';
     } else if (valor > 0) {
         inp.classList.add('has-value');
         inp.style.backgroundColor = '#fff1b5';
-    } else {
-        inp.style.color = 'red';
-        inp.style.borderColor = 'red';
     }
-}
-
-function aplicarSugestoesSalvas() {
-    const sugestoes = SUGESTOES_GLOBAIS;
-    document.querySelectorAll('#tabelaHoras tbody .input-hora').forEach(inp => {
-        atualizarCorInput(inp, sugestoes);
-    });
 }
 
 function atualizarTotalLinha(row) {
@@ -621,10 +614,7 @@ function atualizarTotalLinha(row) {
 function validarStreaks() {
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
         const inputs = row.querySelectorAll('.input-hora');
-        const vals = Array.from(inputs).map(inp => {
-            const v = parseHora(inp.value);
-            return (v !== null);
-        });
+        const vals = Array.from(inputs).map(inp => parseHora(inp.value) !== null);
         const seq = new Array(DIAS).fill(false);
         let streak = 0, i = 0;
         while (i < DIAS) {
@@ -647,11 +637,6 @@ function validarStreaks() {
                 inp.style.backgroundColor = '#ffb366';
             } else {
                 inp.classList.remove('streak-day');
-                if (!inp.classList.contains('has-value') && 
-                    !inp.classList.contains('is-zero') && 
-                    !inp.classList.contains('sugestao')) {
-                    inp.style.backgroundColor = '';
-                }
             }
         });
     });
@@ -673,9 +658,7 @@ function contarFolgas(nome, row) {
     let count = 0;
     for (let i = 0; i < limite; i++) {
         const inp = row.cells[i+1]?.querySelector('.input-hora');
-        if (inp && parseHora(inp.value) === null) {
-            count++;
-        }
+        if (inp && parseHora(inp.value) === null) count++;
     }
     return count;
 }
@@ -711,7 +694,6 @@ function recalcularTudo() {
     validarStreaks();
     atualizarTotaisBotoesDias();
     atualizarTodosContadores();
-    aplicarSugestoesSalvas();
 }
 
 function totalHorasDia(diaIndex) {
@@ -735,6 +717,7 @@ function atualizarTotaisBotoesDias() {
     });
 }
 
+// ===== MODO EDIÇÃO =====
 function ativarEdicaoDia(diaIndex) {
     if (!isEditing) {
         showToast("⚠️ Desbloqueie a planilha primeiro.");
@@ -775,10 +758,7 @@ function sairEdicaoDia() {
 }
 
 function preencherVazios() {
-    if (diaEditandoIndex === null) {
-        showToast('⚠️ Selecione um dia primeiro.');
-        return;
-    }
+    if (diaEditandoIndex === null) return showToast('⚠️ Selecione um dia primeiro.');
     let count = 0;
     const dia = diaEditandoIndex;
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
@@ -791,17 +771,6 @@ function preencherVazios() {
             const key = obterChaveSugestao(inp);
             SUGESTOES_GLOBAIS[key] = true;
             count++;
-        } else {
-            inp.classList.remove('sugestao');
-            const key = obterChaveSugestao(inp);
-            delete SUGESTOES_GLOBAIS[key];
-            if (valor > 0) {
-                inp.style.backgroundColor = '#fff1b5';
-                inp.classList.add('has-value');
-            } else if (valor === 0) {
-                inp.style.backgroundColor = '#e0e0e0';
-                inp.classList.add('is-zero');
-            }
         }
     });
     salvarNoBackend();
@@ -825,6 +794,7 @@ function setEditMode(enable) {
     showToast(enable ? '✅ Modo edição ativado. Clique em um dia para editar.' : '🔒 Modo leitura ativado');
 }
 
+// ===== AUTENTICAÇÃO =====
 function exibirModalSenha() {
     return new Promise((resolve) => {
         const modalDiv = document.createElement('div');
@@ -867,7 +837,7 @@ function bloquear() {
     password = "";
 }
 
-// ===== SALVAMENTO =====
+// ===== BACKEND (API) =====
 async function salvarNoBackend() {
     if (!isEditing || isSaving) return;
     isSaving = true;
@@ -878,32 +848,14 @@ async function salvarNoBackend() {
         const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
         const month = getMesNumero(mesNome);
         const logs = {};
-        const cores = {};
 
         document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
             const nome = getNomeFromRow(row);
             logs[nome] = {};
-            cores[nome] = {};
             row.querySelectorAll('.input-hora').forEach((inp, i) => {
                 const day = i + 1;
                 const v = parseHora(inp.value);
-                if (v !== null && v > 0) {
-                    logs[nome][day] = v;
-                } else if (v === 0) {
-                    logs[nome][day] = 0;
-                } else {
-                    logs[nome][day] = null;
-                }
-                
-                let corAtual = inp.style.backgroundColor || '';
-                if (inp.classList.contains('sugestao')) corAtual = '#d4edda';
-                else if (inp.classList.contains('streak-day')) corAtual = '#ffb366';
-                else if (inp.classList.contains('has-value')) corAtual = '#fff1b5';
-                else if (inp.classList.contains('is-zero')) corAtual = '#e0e0e0';
-                
-                if (corAtual) {
-                    cores[nome][day] = corAtual;
-                }
+                logs[nome][day] = (v !== null && v > 0) ? v : null;
             });
         });
 
@@ -911,24 +863,15 @@ async function salvarNoBackend() {
         document.querySelectorAll('#tabelaHoras tbody .input-hora.sugestao').forEach(inp => {
             const key = obterChaveSugestao(inp);
             sugestoes[key] = true;
-            const pilot = inp.dataset.pilot;
-            const dia = parseInt(inp.dataset.dia);
-            if (pilot && dia) {
-                if (!cores[pilot]) cores[pilot] = {};
-                cores[pilot][dia] = '#d4edda';
-            }
         });
-
         SUGESTOES_GLOBAIS = sugestoes;
-        CORES_GLOBAIS = cores;
 
         const payload = {
             password,
             logs,
             month,
             year: anoAtual,
-            sugestoes: sugestoes,
-            cores: cores
+            sugestoes: sugestoes
         };
 
         const resp = await fetch('/api/data', {
@@ -938,13 +881,9 @@ async function salvarNoBackend() {
         });
 
         const respData = await resp.json();
-        if (!resp.ok || !respData.success) {
-            throw new Error(respData.erro || `HTTP ${resp.status}`);
-        }
+        if (!resp.ok || !respData.success) throw new Error(respData.erro || `HTTP ${resp.status}`);
 
         localStorage.setItem('planilha_sugestoes', JSON.stringify(sugestoes));
-        localStorage.setItem('planilha_cores', JSON.stringify(cores));
-
         syncSpan.innerHTML = '✅ Salvo';
         setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 1500);
         showToast('✅ Dados salvos!');
@@ -957,26 +896,6 @@ async function salvarNoBackend() {
     }
 }
 
-function restaurarCores(cores) {
-    if (!cores) return;
-    document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
-        const nome = getNomeFromRow(row);
-        if (!cores[nome]) return;
-        row.querySelectorAll('.input-hora').forEach((inp, i) => {
-            const day = i + 1;
-            if (cores[nome][day]) {
-                const cor = cores[nome][day];
-                inp.style.backgroundColor = cor;
-                if (cor === '#fff1b5') inp.classList.add('has-value');
-                else if (cor === '#e0e0e0') inp.classList.add('is-zero');
-                else if (cor === '#d4edda') inp.classList.add('sugestao');
-                else if (cor === '#ffb366') inp.classList.add('streak-day');
-            }
-        });
-    });
-}
-
-// ===== CARREGAR DO BACKEND =====
 async function carregarDoBackend() {
     const syncSpan = document.getElementById('syncStatus');
     syncSpan.innerHTML = '⏳ Carregando...';
@@ -990,13 +909,11 @@ async function carregarDoBackend() {
         if (!data.pilots || !data.logs) throw new Error('Resposta incompleta');
 
         LOGS = data.logs || {};
-        const CORES = data.cores || {};
-        CORES_GLOBAIS = CORES;
+        SUGESTOES_GLOBAIS = data.sugestoes || {};
         
-        localStorage.setItem('planilha_cores', JSON.stringify(CORES));
-
         atualizarDias();
 
+        // Cabeçalho
         const thead = document.getElementById('tableHeader');
         let headerHtml = `<tr><th>👤 PILOTO</th>`;
         for (let i = 0; i < DIAS; i++) {
@@ -1008,38 +925,31 @@ async function carregarDoBackend() {
         headerHtml += `<th>⭐ TOTAL</th></tr>`;
         thead.innerHTML = headerHtml;
 
+        // Corpo
         const tbody = document.getElementById('planilhaBody');
         tbody.innerHTML = '';
         const grupos = { "CESSNA 206/210":[], "CARAVAN":[], "COPILOTO":[] };
         
         data.pilots.forEach(p => {
-            // ===== FILTRO: REMOVER TESTE_AUTO =====
-            if (p.name === "TESTE_AUTO") return;
-            
+            if (p.name === "TESTE_AUTO") return; // REMOÇÃO DO TESTE
             const grp = getGrupo(p.name);
             if (grupos[grp]) grupos[grp].push(p);
             else grupos["CESSNA 206/210"].push(p);
         });
 
-        for (let g in grupos) {
-            grupos[g].sort((a, b) => a.name.localeCompare(b.name));
-        }
+        for (let g in grupos) grupos[g].sort((a, b) => a.name.localeCompare(b.name));
 
         for (let grupo of ["CESSNA 206/210","CARAVAN","COPILOTO"]) {
             const titleRow = document.createElement('tr');
             titleRow.classList.add('group-title-row');
-            
             const td = document.createElement('td');
             td.colSpan = DIAS + 2;
-            
             let iconClass = "fa-plane-up";
             if (grupo === "CARAVAN") iconClass = "fa-plane-departure";
             if (grupo === "COPILOTO") iconClass = "fa-user-pilot";
-            
             const icon = document.createElement('i');
             icon.className = `fas ${iconClass}`;
             icon.style.marginRight = '8px';
-            
             td.appendChild(icon);
             td.appendChild(document.createTextNode(` ${grupo}`));
             titleRow.appendChild(td);
@@ -1052,7 +962,7 @@ async function carregarDoBackend() {
                 const nomeCell = document.createElement('td');
                 nomeCell.textContent = p.name;
                 row.appendChild(nomeCell);
-                let total = 0;
+                
                 for (let i = 0; i < DIAS; i++) {
                     const td = document.createElement('td');
                     const inp = document.createElement('input');
@@ -1064,29 +974,18 @@ async function carregarDoBackend() {
                     inp.dataset.dia = i + 1;
 
                     const valorSalvo = (LOGS[p.name] && LOGS[p.name][i+1] !== undefined) ? LOGS[p.name][i+1] : null;
-                    
                     if (valorSalvo !== null && valorSalvo === 0) {
                         inp.value = '';
                     } else if (valorSalvo !== null) {
                         inp.value = formatarHora(valorSalvo);
-                        if (valorSalvo > 0) total += valorSalvo;
                     } else {
                         inp.value = '';
-                    }
-                    
-                    const corSalva = (CORES[p.name] && CORES[p.name][i+1]) ? CORES[p.name][i+1] : null;
-                    if (corSalva) {
-                        inp.style.backgroundColor = corSalva;
-                        if (corSalva === '#fff1b5') inp.classList.add('has-value');
-                        else if (corSalva === '#e0e0e0') inp.classList.add('is-zero');
-                        else if (corSalva === '#d4edda') inp.classList.add('sugestao');
-                        else if (corSalva === '#ffb366') inp.classList.add('streak-day');
                     }
                     
                     atualizarCorInput(inp, SUGESTOES_GLOBAIS);
                     inp.disabled = true;
 
-                    // ===== CORREÇÃO: input apenas atualiza a interface =====
+                    // ===== EVENTOS CORRIGIDOS =====
                     inp.addEventListener('input', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
                         this.classList.remove('sugestao');
@@ -1094,27 +993,20 @@ async function carregarDoBackend() {
                         delete SUGESTOES_GLOBAIS[key];
                         atualizarTotalLinha(row);
                         recalcularTudo();
-                        // NÃO SALVA AQUI - só no blur
                     });
                     
-                    // ===== CORREÇÃO: blur salva os dados =====
                     inp.addEventListener('blur', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
-                        
-                        let valorRaw = this.value.trim().replace('h', '').replace('H', '').replace(',', '.').replace(/[^0-9.]/g, '');
-                        let v = parseFloat(valorRaw);
-                        
-                        if (isNaN(v) || v < 0) {
-                            v = null;
-                            this.value = '';
+                        let v = parseHora(this.value);
+                        if (v === null || v < 0) {
+                            v = null; this.value = '';
                         } else {
                             this.value = formatarHora(v);
                         }
-                        
                         atualizarCorInput(this, SUGESTOES_GLOBAIS);
                         atualizarTotalLinha(row);
                         recalcularTudo();
-                        salvarNoBackend(); // ÚNICO local que salva
+                        salvarNoBackend(); // ÚNICO salvamento
                     });
                     
                     inp.addEventListener('keydown', function(e) {
@@ -1127,20 +1019,26 @@ async function carregarDoBackend() {
                     td.appendChild(inp);
                     row.appendChild(td);
                 }
+                
                 const totalCell = document.createElement('td');
                 totalCell.classList.add('total-cell');
-                totalCell.textContent = formatarHora(total);
+                let totalRow = 0;
+                row.querySelectorAll('.input-hora').forEach(inp => {
+                    const v = parseHora(inp.value);
+                    if(v !== null && v > 0) totalRow += v;
+                });
+                totalCell.textContent = formatarHora(totalRow);
                 row.appendChild(totalCell);
                 tbody.appendChild(row);
             }
         }
-        aplicarSugestoesSalvas();
-        restaurarCores(CORES);
+
         recalcularTudo();
         criarBotoesDias();
         setEditMode(false);
         syncSpan.innerHTML = '✅ Carregado';
         setTimeout(() => syncSpan.innerHTML = '💾 Sincronizado', 2000);
+        
         if (socket && socket.connected) {
             socket.emit('join_month', { month: mesNum, year: anoAtual });
         }
@@ -1151,6 +1049,7 @@ async function carregarDoBackend() {
     }
 }
 
+// ===== BOTÕES DE DIAS =====
 function criarBotoesDias() {
     const container = document.getElementById('botoesDias');
     container.innerHTML = '';
@@ -1162,17 +1061,15 @@ function criarBotoesDias() {
         btn.onclick = () => {
             document.querySelectorAll('.btn-dia').forEach(b => b.classList.remove('dia-selecionado'));
             btn.classList.add('dia-selecionado');
-            if (isEditing) {
-                ativarEdicaoDia(i);
-            } else {
-                showToast('🔐 Desbloqueie a planilha para editar um dia.');
-            }
+            if (isEditing) ativarEdicaoDia(i);
+            else showToast('🔐 Desbloqueie a planilha para editar um dia.');
         };
         container.appendChild(btn);
     }
     atualizarTotaisBotoesDias();
 }
 
+// ===== MODAIS (RANKING E AJUDA) =====
 function mostrarRanking() {
     const mesAtual = document.getElementById('campoMes').value.trim() || "Julho";
     const pilotos = [];
@@ -1197,13 +1094,11 @@ function mostrarRanking() {
     for (let g in dadosPorGrupo) dadosPorGrupo[g].sort((a,b) => b.total - a.total);
 
     let html = `<div class="card-detalhe"><h2 style="text-align:center;">📊 Ranking de Horas — ${mesAtual}</h2>`;
-    
     const titulos = {
         "CESSNA 206/210": '<i class="fas fa-plane-up" style="color:#3b2a1f;margin-right:8px;"></i> CMTES CESSNA 206/210',
         "CARAVAN": '<i class="fas fa-plane-departure" style="color:#3b2a1f;margin-right:8px;"></i> CMTES CARAVAN 208',
         "COPILOTO": '<i class="fas fa-user-pilot" style="color:#3b2a1f;margin-right:8px;"></i> COPILOTOS CARAVAN'
     };
-    
     for (let grupo of grupos) {
         const lista = dadosPorGrupo[grupo] || [];
         if (lista.length === 0) continue;
@@ -1251,35 +1146,29 @@ function mostrarAjuda() {
     modal.querySelector('#fecharAjuda').onclick = () => modal.remove();
 }
 
+// ===== EVENTOS GLOBAIS =====
 document.getElementById('btnMesAnterior').addEventListener('click', function() {
-    if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
+    if (!isEditing) return showToast("⚠️ Desbloqueie para navegar.");
     sairEdicaoDia();
-    const mesAtual = document.getElementById('campoMes').value.trim();
-    const mesNum = getMesNumero(mesAtual);
-    let novoMesNum = mesNum - 1;
-    if (novoMesNum < 1) { novoMesNum = 12; anoAtual -= 1; }
-    const nomeMes = getNomeMes(novoMesNum);
-    document.getElementById('campoMes').value = nomeMes;
-    salvarMesAno(nomeMes, anoAtual);
+    let mesNum = getMesNumero(document.getElementById('campoMes').value.trim());
+    if (--mesNum < 1) { mesNum = 12; anoAtual -= 1; }
+    document.getElementById('campoMes').value = getNomeMes(mesNum);
+    salvarMesAno(getNomeMes(mesNum), anoAtual);
     carregarDoBackend();
 });
 document.getElementById('btnMesProximo').addEventListener('click', function() {
-    if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
+    if (!isEditing) return showToast("⚠️ Desbloqueie para navegar.");
     sairEdicaoDia();
-    const mesAtual = document.getElementById('campoMes').value.trim();
-    const mesNum = getMesNumero(mesAtual);
-    let novoMesNum = mesNum + 1;
-    if (novoMesNum > 12) { novoMesNum = 1; anoAtual += 1; }
-    const nomeMes = getNomeMes(novoMesNum);
-    document.getElementById('campoMes').value = nomeMes;
-    salvarMesAno(nomeMes, anoAtual);
+    let mesNum = getMesNumero(document.getElementById('campoMes').value.trim());
+    if (++mesNum > 12) { mesNum = 1; anoAtual += 1; }
+    document.getElementById('campoMes').value = getNomeMes(mesNum);
+    salvarMesAno(getNomeMes(mesNum), anoAtual);
     carregarDoBackend();
 });
 document.getElementById('campoMes').addEventListener('change', function() {
-    if (!isEditing) { showToast("⚠️ Desbloqueie para navegar."); return; }
+    if (!isEditing) return showToast("⚠️ Desbloqueie para navegar.");
     sairEdicaoDia();
-    const nomeMes = this.value.trim();
-    salvarMesAno(nomeMes, anoAtual);
+    salvarMesAno(this.value.trim(), anoAtual);
     carregarDoBackend();
 });
 
@@ -1290,22 +1179,22 @@ document.getElementById('btnPreencherVazios').onclick = preencherVazios;
 document.getElementById('btnRanking').onclick = mostrarRanking;
 document.getElementById('btnAjuda').onclick = mostrarAjuda;
 
+// ===== INICIALIZAÇÃO =====
 const dadosStorage = obterMesAno();
 const dataAtual = new Date();
 if (dadosStorage) {
     document.getElementById('campoMes').value = dadosStorage.mes;
     anoAtual = dadosStorage.ano;
 } else {
-    const mesAtualNome = getNomeMes(dataAtual.getMonth() + 1);
-    document.getElementById('campoMes').value = mesAtualNome;
+    document.getElementById('campoMes').value = getNomeMes(dataAtual.getMonth() + 1);
     anoAtual = dataAtual.getFullYear();
 }
 carregarDoBackend();
 
+// ===== SOCKET.IO (REAL-TIME) =====
 let socket = null;
 function iniciarSocket() {
-    if (typeof io === 'undefined') return;
-    if (socket) return;
+    if (typeof io === 'undefined' || socket) return;
     socket = io({ transports: ['polling'] });
     socket.on('connect', () => {
         document.getElementById('syncStatus').classList.add('rt-on');
@@ -1333,11 +1222,7 @@ function iniciarSocket() {
             const inp = row.cells[day]?.querySelector('.input-hora');
             if (!inp) return;
             const v = Number(value);
-            if (isNaN(v)) {
-                inp.value = '';
-            } else {
-                inp.value = formatarHora(v);
-            }
+            inp.value = isNaN(v) ? '' : formatarHora(v);
             atualizarCorInput(inp, SUGESTOES_GLOBAIS);
             atualizarTotalLinha(row);
         });
