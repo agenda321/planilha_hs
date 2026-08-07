@@ -517,7 +517,6 @@ let isEditing = false;
 let password = "";
 let diaEditandoIndex = null;
 let isSaving = false;
-let saveTimeout = null;
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 function getMesNumero(nomeMes) {
@@ -868,16 +867,9 @@ function bloquear() {
     password = "";
 }
 
-// ===== SALVAMENTO OTIMIZADO =====
+// ===== SALVAMENTO =====
 async function salvarNoBackend() {
     if (!isEditing || isSaving) return;
-    
-    // Cancela salvamento pendente
-    if (saveTimeout) {
-        clearTimeout(saveTimeout);
-        saveTimeout = null;
-    }
-    
     isSaving = true;
     const syncSpan = document.getElementById('syncStatus');
     syncSpan.innerHTML = '⏳ Salvando...';
@@ -965,17 +957,6 @@ async function salvarNoBackend() {
     }
 }
 
-// Função para agendar salvamento (debounce)
-function agendarSalvamento() {
-    if (saveTimeout) {
-        clearTimeout(saveTimeout);
-    }
-    saveTimeout = setTimeout(() => {
-        salvarNoBackend();
-        saveTimeout = null;
-    }, 500);
-}
-
 function restaurarCores(cores) {
     if (!cores) return;
     document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
@@ -1031,9 +1012,9 @@ async function carregarDoBackend() {
         tbody.innerHTML = '';
         const grupos = { "CESSNA 206/210":[], "CARAVAN":[], "COPILOTO":[] };
         
-        // ===== FILTRO: REMOVER TESTE_AUTO =====
         data.pilots.forEach(p => {
-            if (p.name === "TESTE_AUTO") return; // Ignora o TESTE_AUTO
+            // ===== FILTRO: REMOVER TESTE_AUTO =====
+            if (p.name === "TESTE_AUTO") return;
             
             const grp = getGrupo(p.name);
             if (grupos[grp]) grupos[grp].push(p);
@@ -1105,6 +1086,7 @@ async function carregarDoBackend() {
                     atualizarCorInput(inp, SUGESTOES_GLOBAIS);
                     inp.disabled = true;
 
+                    // ===== CORREÇÃO: input apenas atualiza a interface =====
                     inp.addEventListener('input', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
                         this.classList.remove('sugestao');
@@ -1112,9 +1094,10 @@ async function carregarDoBackend() {
                         delete SUGESTOES_GLOBAIS[key];
                         atualizarTotalLinha(row);
                         recalcularTudo();
-                        agendarSalvamento(); // Usa o debounce
+                        // NÃO SALVA AQUI - só no blur
                     });
                     
+                    // ===== CORREÇÃO: blur salva os dados =====
                     inp.addEventListener('blur', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
                         
@@ -1131,7 +1114,7 @@ async function carregarDoBackend() {
                         atualizarCorInput(this, SUGESTOES_GLOBAIS);
                         atualizarTotalLinha(row);
                         recalcularTudo();
-                        salvarNoBackend(); // Salva imediatamente no blur
+                        salvarNoBackend(); // ÚNICO local que salva
                     });
                     
                     inp.addEventListener('keydown', function(e) {
