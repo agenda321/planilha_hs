@@ -8,7 +8,7 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from flask_cors import CORS
 from flask_socketio import SocketIO, join_room
-from sqlalchemy import text  # <-- ADICIONADO
+from sqlalchemy import text
 
 print("🚀 Iniciando aplicação...")
 sys.stdout.flush()
@@ -18,7 +18,7 @@ CORS(app)
 print("✅ Flask e CORS configurados")
 sys.stdout.flush()
 
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')  # <-- OTIMIZADO
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 print("✅ SocketIO configurado")
 sys.stdout.flush()
 
@@ -99,6 +99,7 @@ class FlightLog(db.Model):
     year = db.Column(db.Integer, nullable=False)
     hours = db.Column(db.Float, nullable=False, default=0.0)
     sugestoes = db.Column(db.JSON, nullable=False, default={})
+    cor = db.Column(db.String(20), nullable=True)  # <-- NOVO CAMPO
     pilot = db.relationship("Pilot", backref=db.backref("flight_logs", lazy=True))
 
 print("✅ Modelos definidos")
@@ -178,13 +179,21 @@ def get_data():
         result = {
             "pilots": [{"name": p.name, "group": p.group, "full_name": p.full_name or p.name} for p in pilots],
             "logs": {},
+            "cores": {},  # <-- NOVO
             "sugestoes": sugestoes_consolidadas
         }
 
         for log in logs_current:
-            if log.pilot.name not in result["logs"]:
-                result["logs"][log.pilot.name] = {}
-            result["logs"][log.pilot.name][log.day] = log.hours if log.hours is not None else 0.0
+            pilot_name = log.pilot.name
+            if pilot_name not in result["logs"]:
+                result["logs"][pilot_name] = {}
+                result["cores"][pilot_name] = {}  # <-- NOVO
+            
+            result["logs"][pilot_name][log.day] = log.hours if log.hours is not None else 0.0
+            
+            # <-- SALVA A COR
+            if log.cor:
+                result["cores"][pilot_name][log.day] = log.cor
 
         print(f"📤 Retornando {len(pilots)} pilotos e {len(logs_current)} logs para {month}/{year}")
         return jsonify(result)
@@ -195,7 +204,7 @@ def get_data():
 
 @app.route("/api/data", methods=["POST"])
 def save_data():
-    """Versão OTIMIZADA para salvar dados mais rápido!"""
+    """Versão OTIMIZADA com suporte a CORES"""
     print("🚨 POST /api/data CHAMADO!")
     try:
         data = request.get_json()
@@ -215,16 +224,18 @@ def save_data():
 
         logs_recebidos = data.get("logs", {})
         sugestoes_recebidas = data.get("sugestoes", {})
+        cores_recebidas = data.get("cores", {})  # <-- NOVO
         
         print(f"📥 RECEBIDO logs para {month}/{year}")
         print(f"📥 Pilotos no payload: {list(logs_recebidos.keys())}")
+        print(f"📥 Cores recebidas: {len(cores_recebidas)}")
 
-        # === OTIMIZAÇÃO: Buscar todos os pilotos de uma vez ===
+        # Buscar todos os pilotos de uma vez
         pilotos_nomes = list(logs_recebidos.keys())
         pilotos = Pilot.query.filter(Pilot.name.in_(pilotos_nomes)).all()
         pilotos_dict = {p.name: p for p in pilotos}
         
-        # === OTIMIZAÇÃO: Buscar todos os logs existentes de uma vez ===
+        # Buscar todos os logs existentes de uma vez
         logs_existentes = FlightLog.query.filter_by(month=month, year=year).all()
         logs_dict = {}
         for log in logs_existentes:
@@ -235,7 +246,7 @@ def save_data():
         logs_para_atualizar = []
         logs_para_deletar = []
 
-        # === PROCESSAR LOGS ===
+        # PROCESSAR LOGS
         for pilot_name, days in logs_recebidos.items():
             pilot = pilotos_dict.get(pilot_name)
             if not pilot:
@@ -246,6 +257,10 @@ def save_data():
                 day = int(day_str)
                 key = f"{pilot.id}_{day}"
                 log = logs_dict.get(key)
+                
+                # Busca a cor para este dia/piloto
+                cor_key = f"{pilot_name}_{day}"
+                cor = cores_recebidas.get(cor_key)
                 
                 # Se hours for None ou vazio, marca para deletar
                 if hours is None or hours == "":
@@ -262,6 +277,8 @@ def save_data():
                 if log:
                     # Atualiza existente
                     log.hours = valor_horas
+                    if cor:
+                        log.cor = cor
                     logs_para_atualizar.append(log)
                 else:
                     # Cria novo
@@ -271,11 +288,12 @@ def save_data():
                         month=month,
                         year=year,
                         hours=valor_horas,
-                        sugestoes={}
+                        sugestoes={},
+                        cor=cor if cor else None
                     )
                     logs_para_adicionar.append(novo_log)
 
-        # === PROCESSAR SUGESTÕES (OTIMIZADO) ===
+        # PROCESSAR SUGESTÕES
         if sugestoes_recebidas:
             mes_nome = getNomeMes(month)
             print(f"📥 Processando {len(sugestoes_recebidas)} sugestões")
@@ -312,11 +330,12 @@ def save_data():
                         month=month,
                         year=year,
                         hours=0.0,
-                        sugestoes={key: True}
+                        sugestoes={key: True},
+                        cor=None
                     )
                     logs_para_adicionar.append(novo_log)
 
-        # === EXECUTAR OPERAÇÕES EM LOTE (MAIS RÁPIDO!) ===
+        # EXECUTAR OPERAÇÕES EM LOTE
         if logs_para_deletar:
             for log in logs_para_deletar:
                 db.session.delete(log)
@@ -326,13 +345,11 @@ def save_data():
             db.session.add_all(logs_para_adicionar)
             print(f"➕ Adicionados: {len(logs_para_adicionar)} logs")
 
-        # Logs para atualizar já estão no session
-
         db.session.commit()
         total = len(logs_para_adicionar) + len(logs_para_atualizar)
         print(f"✅ Commit realizado! {total} logs salvos para {month}/{year}")
 
-        # 📢 EMITE O AVISO EM TEMPO REAL
+        # EMITE O AVISO EM TEMPO REAL
         socketio.emit(
             "data_updated", 
             {"month": month, "year": year}, 
@@ -366,28 +383,11 @@ def debug_pilots():
         return jsonify({"error": str(e)}), 500
 
 # ========================
-# 🔧 ROTAS DE TESTE (CORRIGIDAS)
+# 🔧 ROTAS DE TESTE
 # ========================
-
-@app.route("/debug/check-api")
-def check_api():
-    """Verifica se as rotas da API estão funcionando"""
-    return jsonify({
-        "status": "OK",
-        "rotas": {
-            "/api/data": {
-                "GET": "disponível",
-                "POST": "disponível"
-            },
-            "/api/login": "disponível",
-            "/health": "disponível"
-        },
-        "mensagem": "Todas as rotas estão configuradas"
-    })
 
 @app.route("/test-db")
 def test_db():
-    """Teste completo de conexão e dados no Supabase"""
     try:
         resultado = {
             "status": "OK",
@@ -398,17 +398,11 @@ def test_db():
             "ultimos_logs": []
         }
         
-        # 1. Testa conexão
         db.session.execute(text("SELECT 1"))
         resultado["conexao"] = True
-        
-        # 2. Conta pilotos
         resultado["pilotos"] = Pilot.query.count()
-        
-        # 3. Conta logs
         resultado["logs"] = FlightLog.query.count()
         
-        # 4. Últimos 5 logs
         ultimos = FlightLog.query.order_by(FlightLog.id.desc()).limit(5).all()
         for log in ultimos:
             resultado["ultimos_logs"].append({
@@ -417,10 +411,10 @@ def test_db():
                 "dia": log.day,
                 "mes": log.month,
                 "ano": log.year,
-                "horas": log.hours
+                "horas": log.hours,
+                "cor": log.cor
             })
         
-        # 5. Lista tabelas existentes
         tabelas = db.session.execute(text("""
             SELECT table_name 
             FROM information_schema.tables 
@@ -429,33 +423,20 @@ def test_db():
         resultado["tabelas"]["public"] = [t[0] for t in tabelas]
         
         return jsonify(resultado)
-        
     except Exception as e:
-        return jsonify({
-            "status": "ERRO",
-            "erro": str(e),
-            "tipo": type(e).__name__
-        }), 500
+        return jsonify({"status": "ERRO", "erro": str(e), "tipo": type(e).__name__}), 500
 
 @app.route("/test-insert")
 def test_insert():
-    """Testa inserção de dados no Supabase"""
     try:
         from datetime import datetime
         
-        # 1. Cria piloto de teste
         pilot = Pilot.query.filter_by(name="TESTE_AUTO").first()
         if not pilot:
-            pilot = Pilot(
-                name="TESTE_AUTO",
-                full_name="Teste Automático",
-                group="TESTE"
-            )
+            pilot = Pilot(name="TESTE_AUTO", full_name="Teste Automático", group="TESTE")
             db.session.add(pilot)
             db.session.commit()
-            print("✅ Piloto de teste criado")
         
-        # 2. Insere log de teste
         now = datetime.now()
         log = FlightLog(
             pilot_id=pilot.id,
@@ -463,77 +444,37 @@ def test_insert():
             month=now.month,
             year=now.year,
             hours=8.5,
-            sugestoes={"teste": True}
+            sugestoes={"teste": True},
+            cor="#fff1b5"
         )
         db.session.add(log)
         db.session.commit()
         
-        # 3. Busca o log inserido
-        log_inserido = FlightLog.query.filter_by(
-            pilot_id=pilot.id,
-            day=now.day,
-            month=now.month,
-            year=now.year
-        ).first()
-        
         return jsonify({
             "status": "SUCESSO",
             "mensagem": "Dados inseridos com sucesso!",
-            "piloto": {
-                "id": pilot.id,
-                "nome": pilot.name,
-                "grupo": pilot.group
-            },
-            "log": {
-                "id": log_inserido.id if log_inserido else None,
-                "dia": now.day,
-                "mes": now.month,
-                "ano": now.year,
-                "horas": 8.5
-            }
+            "piloto": {"id": pilot.id, "nome": pilot.name, "grupo": pilot.group},
+            "log": {"id": log.id, "dia": now.day, "mes": now.month, "ano": now.year, "horas": 8.5, "cor": "#fff1b5"}
         })
-        
     except Exception as e:
         db.session.rollback()
-        return jsonify({
-            "status": "ERRO",
-            "erro": str(e),
-            "tipo": type(e).__name__
-        }), 500
+        return jsonify({"status": "ERRO", "erro": str(e)}), 500
 
 @app.route("/test-supabase")
 def test_supabase():
-    """Teste específico para Supabase"""
     try:
-        # 1. Verifica se é Supabase
         is_supabase = "supabase" in app.config["SQLALCHEMY_DATABASE_URI"].lower()
-        
-        # 2. Tenta listar tabelas do schema
         tabelas = db.session.execute(text("""
-            SELECT tablename 
-            FROM pg_tables 
-            WHERE schemaname = 'public'
+            SELECT tablename FROM pg_tables WHERE schemaname = 'public'
         """)).fetchall()
-        
-        # 3. Testa comando específico do Supabase
-        try:
-            db.session.execute(text("SELECT current_database()"))
-            db_name = "OK"
-        except:
-            db_name = "ERRO"
         
         return jsonify({
             "supabase_detectado": is_supabase,
             "tabelas_public": [t[0] for t in tabelas],
-            "database": db_name,
             "versao_postgres": db.session.execute(text("SELECT version()")).fetchone()[0][:100]
         })
-        
     except Exception as e:
-        return jsonify({
-            "status": "ERRO",
-            "erro": str(e)
-        }), 500
+        return jsonify({"status": "ERRO", "erro": str(e)}), 500
 
 # ========================
 # FIM DAS ROTAS DE TESTE
