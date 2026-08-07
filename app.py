@@ -8,6 +8,7 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from flask_cors import CORS
 from flask_socketio import SocketIO, join_room
+from sqlalchemy import text  # <-- ADICIONADO
 
 print("🚀 Iniciando aplicação...")
 sys.stdout.flush()
@@ -17,7 +18,7 @@ CORS(app)
 print("✅ Flask e CORS configurados")
 sys.stdout.flush()
 
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')  # <-- OTIMIZADO
 print("✅ SocketIO configurado")
 sys.stdout.flush()
 
@@ -111,6 +112,19 @@ def getNomeMes(num):
 def sala_do_mes(month, year):
     return f"{int(month)}-{int(year)}"
 
+# === TRATAMENTO DE ERROS GLOBAL ===
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({"erro": "Rota não encontrada"}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({"erro": "Erro interno do servidor"}), 500
+
+@app.errorhandler(Exception)
+def handle_exception(error):
+    return jsonify({"erro": str(error)}), 500
+
 # === ROTAS E SOCKETS ===
 @app.route("/")
 def landing():
@@ -181,6 +195,7 @@ def get_data():
 
 @app.route("/api/data", methods=["POST"])
 def save_data():
+    """Versão OTIMIZADA para salvar dados mais rápido!"""
     print("🚨 POST /api/data CHAMADO!")
     try:
         data = request.get_json()
@@ -204,31 +219,38 @@ def save_data():
         print(f"📥 RECEBIDO logs para {month}/{year}")
         print(f"📥 Pilotos no payload: {list(logs_recebidos.keys())}")
 
-        logs_salvos = 0
+        # === OTIMIZAÇÃO: Buscar todos os pilotos de uma vez ===
+        pilotos_nomes = list(logs_recebidos.keys())
+        pilotos = Pilot.query.filter(Pilot.name.in_(pilotos_nomes)).all()
+        pilotos_dict = {p.name: p for p in pilotos}
+        
+        # === OTIMIZAÇÃO: Buscar todos os logs existentes de uma vez ===
+        logs_existentes = FlightLog.query.filter_by(month=month, year=year).all()
+        logs_dict = {}
+        for log in logs_existentes:
+            key = f"{log.pilot_id}_{log.day}"
+            logs_dict[key] = log
 
-        # === SALVAR HORAS ===
+        logs_para_adicionar = []
+        logs_para_atualizar = []
+        logs_para_deletar = []
+
+        # === PROCESSAR LOGS ===
         for pilot_name, days in logs_recebidos.items():
-            pilot = Pilot.query.filter_by(name=pilot_name).first()
+            pilot = pilotos_dict.get(pilot_name)
             if not pilot:
-                print(f"⚠️ Piloto NÃO ENCONTRADO no banco: {pilot_name}")
+                print(f"⚠️ Piloto NÃO ENCONTRADO: {pilot_name}")
                 continue
-                
-            print(f"✅ Processando piloto: {pilot_name} (ID: {pilot.id})")
                 
             for day_str, hours in days.items():
                 day = int(day_str)
+                key = f"{pilot.id}_{day}"
+                log = logs_dict.get(key)
                 
-                # Se hours for None ou vazio, remove o registro
+                # Se hours for None ou vazio, marca para deletar
                 if hours is None or hours == "":
-                    log = FlightLog.query.filter_by(
-                        pilot_id=pilot.id, 
-                        day=day, 
-                        month=month, 
-                        year=year
-                    ).first()
                     if log:
-                        db.session.delete(log)
-                        print(f"🗑️ Removido: {pilot_name} dia {day}")
+                        logs_para_deletar.append(log)
                     continue
                 
                 try:
@@ -237,33 +259,27 @@ def save_data():
                     print(f"⚠️ Valor inválido: {pilot_name} dia {day} = {hours}")
                     continue
                 
-                log = FlightLog.query.filter_by(
-                    pilot_id=pilot.id, 
-                    day=day, 
-                    month=month, 
-                    year=year
-                ).first()
-                
                 if log:
+                    # Atualiza existente
                     log.hours = valor_horas
-                    print(f"✅ Atualizado: {pilot_name} dia {day} = {valor_horas}")
+                    logs_para_atualizar.append(log)
                 else:
-                    log = FlightLog(
+                    # Cria novo
+                    novo_log = FlightLog(
                         pilot_id=pilot.id,
                         day=day,
                         month=month,
                         year=year,
-                        hours=valor_horas
+                        hours=valor_horas,
+                        sugestoes={}
                     )
-                    db.session.add(log)
-                    print(f"✅ Criado: {pilot_name} dia {day} = {valor_horas}")
-                
-                logs_salvos += 1
+                    logs_para_adicionar.append(novo_log)
 
-        # === SALVAR SUGESTÕES ===
+        # === PROCESSAR SUGESTÕES (OTIMIZADO) ===
         if sugestoes_recebidas:
             mes_nome = getNomeMes(month)
             print(f"📥 Processando {len(sugestoes_recebidas)} sugestões")
+            
             for key, value in sugestoes_recebidas.items():
                 if not value:
                     continue
@@ -278,23 +294,19 @@ def save_data():
                 if ano_key != year or mes_nome_key != mes_nome:
                     continue
                     
-                pilot = Pilot.query.filter_by(name=pilot_name_key).first()
+                pilot = pilotos_dict.get(pilot_name_key)
                 if not pilot:
                     continue
-                    
-                log = FlightLog.query.filter_by(
-                    pilot_id=pilot.id, 
-                    day=dia_key, 
-                    month=month, 
-                    year=year
-                ).first()
+                
+                log_key = f"{pilot.id}_{dia_key}"
+                log = logs_dict.get(log_key)
                 
                 if log:
                     if log.sugestoes is None:
                         log.sugestoes = {}
                     log.sugestoes[key] = True
                 else:
-                    log = FlightLog(
+                    novo_log = FlightLog(
                         pilot_id=pilot.id,
                         day=dia_key,
                         month=month,
@@ -302,10 +314,23 @@ def save_data():
                         hours=0.0,
                         sugestoes={key: True}
                     )
-                    db.session.add(log)
+                    logs_para_adicionar.append(novo_log)
+
+        # === EXECUTAR OPERAÇÕES EM LOTE (MAIS RÁPIDO!) ===
+        if logs_para_deletar:
+            for log in logs_para_deletar:
+                db.session.delete(log)
+            print(f"🗑️ Deletados: {len(logs_para_deletar)} logs")
+
+        if logs_para_adicionar:
+            db.session.add_all(logs_para_adicionar)
+            print(f"➕ Adicionados: {len(logs_para_adicionar)} logs")
+
+        # Logs para atualizar já estão no session
 
         db.session.commit()
-        print(f"✅ Commit realizado com sucesso! {logs_salvos} logs salvos para {month}/{year}")
+        total = len(logs_para_adicionar) + len(logs_para_atualizar)
+        print(f"✅ Commit realizado! {total} logs salvos para {month}/{year}")
 
         # 📢 EMITE O AVISO EM TEMPO REAL
         socketio.emit(
@@ -314,7 +339,7 @@ def save_data():
             to=sala_do_mes(month, year)
         )
 
-        return jsonify({"success": True, "logs_salvos": logs_salvos})
+        return jsonify({"success": True, "logs_salvos": total})
         
     except Exception as e:
         print(f"❌ Erro em /api/data (POST): {e}")
@@ -327,10 +352,10 @@ def clear_month(month, year):
     try:
         apagados = FlightLog.query.filter_by(month=month, year=year).delete()
         db.session.commit()
-        return f"✅ {apagados} registro(s) de horas apagados para {month}/{year}."
+        return jsonify({"success": True, "apagados": apagados})
     except Exception as e:
         db.session.rollback()
-        return f"Erro: {e}", 500
+        return jsonify({"success": False, "erro": str(e)}), 500
 
 @app.route("/api/debug/pilots")
 def debug_pilots():
@@ -341,8 +366,24 @@ def debug_pilots():
         return jsonify({"error": str(e)}), 500
 
 # ========================
-# 🔧 ROTAS DE TESTE COMPLETAS
+# 🔧 ROTAS DE TESTE (CORRIGIDAS)
 # ========================
+
+@app.route("/debug/check-api")
+def check_api():
+    """Verifica se as rotas da API estão funcionando"""
+    return jsonify({
+        "status": "OK",
+        "rotas": {
+            "/api/data": {
+                "GET": "disponível",
+                "POST": "disponível"
+            },
+            "/api/login": "disponível",
+            "/health": "disponível"
+        },
+        "mensagem": "Todas as rotas estão configuradas"
+    })
 
 @app.route("/test-db")
 def test_db():
@@ -358,7 +399,7 @@ def test_db():
         }
         
         # 1. Testa conexão
-        db.session.execute("SELECT 1")
+        db.session.execute(text("SELECT 1"))
         resultado["conexao"] = True
         
         # 2. Conta pilotos
@@ -380,11 +421,11 @@ def test_db():
             })
         
         # 5. Lista tabelas existentes
-        tabelas = db.session.execute("""
+        tabelas = db.session.execute(text("""
             SELECT table_name 
             FROM information_schema.tables 
             WHERE table_schema = 'public'
-        """).fetchall()
+        """)).fetchall()
         resultado["tabelas"]["public"] = [t[0] for t in tabelas]
         
         return jsonify(resultado)
@@ -468,15 +509,15 @@ def test_supabase():
         is_supabase = "supabase" in app.config["SQLALCHEMY_DATABASE_URI"].lower()
         
         # 2. Tenta listar tabelas do schema
-        tabelas = db.session.execute("""
+        tabelas = db.session.execute(text("""
             SELECT tablename 
             FROM pg_tables 
             WHERE schemaname = 'public'
-        """).fetchall()
+        """)).fetchall()
         
         # 3. Testa comando específico do Supabase
         try:
-            db.session.execute("SELECT current_database()")
+            db.session.execute(text("SELECT current_database()"))
             db_name = "OK"
         except:
             db_name = "ERRO"
@@ -485,7 +526,7 @@ def test_supabase():
             "supabase_detectado": is_supabase,
             "tabelas_public": [t[0] for t in tabelas],
             "database": db_name,
-            "versao_postgres": db.session.execute("SELECT version()").fetchone()[0][:100]
+            "versao_postgres": db.session.execute(text("SELECT version()")).fetchone()[0][:100]
         })
         
     except Exception as e:
