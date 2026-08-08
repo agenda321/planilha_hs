@@ -15,6 +15,8 @@ sys.stdout.flush()
 
 app = Flask(__name__)
 CORS(app)
+# 🔧 CORREÇÃO DE TIMEOUT: Permite que o servidor demore até 2 minutos para salvar
+app.config['TIMEOUT'] = 120 
 print("✅ Flask e CORS configurados")
 sys.stdout.flush()
 
@@ -114,7 +116,7 @@ def sala_do_mes(month, year):
     return f"{int(month)}-{int(year)}"
 
 def converter_para_float(valor):
-    """Converte string com vírgula para float - CORREÇÃO DO ERRO!"""
+    """Converte string com vírgula para float"""
     if valor is None or valor == "":
         return None
     # Remove "h", "H" e substitui vírgula por ponto
@@ -226,7 +228,6 @@ def save_data():
         if data.get("password") not in [EDIT_PASSWORD, EDIT_PASSWORD_2]:
             return jsonify({"success": False}), 401
 
-        # Validação extra para evitar que mês/ano nulos quebrem a aplicação
         try:
             month = int(data.get("month"))
             year = int(data.get("year"))
@@ -278,7 +279,7 @@ def save_data():
                         logs_para_deletar.append(log)
                     continue
                 
-                # Converte o valor (incluindo 0.0) usando a função robusta
+                # Converte o valor (incluindo 0.0)
                 valor_horas = converter_para_float(hours)
                 if valor_horas is None:
                     print(f"⚠️ Valor inválido: {pilot_name} dia {day} = {hours}")
@@ -534,8 +535,21 @@ def init_db():
 
 init_db()
 
+# ==============================
+# 🔥 INICIALIZAÇÃO FINAL COM TIMEOUT CORRIGIDO
+# ==============================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    print(f"✅ Servidor rodando na porta {port}")
+    print(f"✅ Servidor rodando na porta {port} em modo otimizado para Render")
     sys.stdout.flush()
-    socketio.run(app, host="0.0.0.0", port=port)
+    
+    # Inicialização do SocketIO com parâmetros que evitam timeouts no Render
+    socketio.run(
+        app, 
+        host="0.0.0.0", 
+        port=port,
+        debug=False,
+        use_reloader=False,
+        log_output=True,
+        allow_unsafe_werkzeug=True
+    )
