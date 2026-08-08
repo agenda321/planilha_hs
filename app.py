@@ -15,8 +15,7 @@ sys.stdout.flush()
 
 app = Flask(__name__)
 CORS(app)
-# 🔧 CORREÇÃO DE TIMEOUT: Permite que o servidor demore até 2 minutos para salvar
-app.config['TIMEOUT'] = 120 
+app.config['TIMEOUT'] = 120
 print("✅ Flask e CORS configurados")
 sys.stdout.flush()
 
@@ -24,7 +23,6 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 print("✅ SocketIO configurado")
 sys.stdout.flush()
 
-# === CONFIGURAÇÃO DO BANCO DE DADOS ===
 database_url = os.environ.get("DATABASE_URL")
 if not database_url:
     print("❌ DATABASE_URL não definida! Usando SQLite para teste.")
@@ -84,7 +82,6 @@ EDIT_PASSWORD = os.environ.get("EDIT_PASSWORD", "Emerson")
 EDIT_PASSWORD_2 = os.environ.get("EDIT_PASSWORD_2", "Bispo")
 PILOTOS_EXCLUIDOS = []
 
-# === MODELOS ===
 class Pilot(db.Model):
     __tablename__ = "pilot"
     id = db.Column(db.Integer, primary_key=True)
@@ -99,7 +96,7 @@ class FlightLog(db.Model):
     day = db.Column(db.Integer, nullable=False)
     month = db.Column(db.Integer, nullable=False)
     year = db.Column(db.Integer, nullable=False)
-    hours = db.Column(db.Float, nullable=False, default=0.0)
+    hours = db.Column(db.Float, nullable=True, default=None)  # ← CORRIGIDO
     sugestoes = db.Column(db.JSON, nullable=False, default={})
     cor = db.Column(db.String(20), nullable=True)
     pilot = db.relationship("Pilot", backref=db.backref("flight_logs", lazy=True))
@@ -107,7 +104,6 @@ class FlightLog(db.Model):
 print("✅ Modelos definidos")
 sys.stdout.flush()
 
-# === FUNÇÕES AUXILIARES ===
 def getNomeMes(num):
     meses = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"]
     return meses[num-1] if 1 <= num <= 12 else "Julho"
@@ -116,19 +112,15 @@ def sala_do_mes(month, year):
     return f"{int(month)}-{int(year)}"
 
 def converter_para_float(valor):
-    """Converte string com vírgula para float"""
     if valor is None or valor == "":
         return None
-    # Remove "h", "H" e substitui vírgula por ponto
     valor_str = str(valor).replace('h', '').replace('H', '').replace(',', '.').strip()
-    # Remove qualquer caractere que não seja número ou ponto
     valor_str = re.sub(r'[^0-9.]', '', valor_str)
     try:
         return float(valor_str)
     except ValueError:
         return None
 
-# === TRATAMENTO DE ERROS GLOBAL ===
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({"erro": "Rota não encontrada"}), 404
@@ -141,7 +133,6 @@ def internal_error(error):
 def handle_exception(error):
     return jsonify({"erro": str(error)}), 500
 
-# === ROTAS E SOCKETS ===
 @app.route("/")
 def landing():
     return redirect("/planilha")
@@ -204,8 +195,7 @@ def get_data():
                 result["logs"][pilot_name] = {}
                 result["cores"][pilot_name] = {}
             
-            result["logs"][pilot_name][log.day] = log.hours if log.hours is not None else 0.0
-            
+            result["logs"][pilot_name][log.day] = log.hours   # ← mantém None
             if log.cor:
                 result["cores"][pilot_name][log.day] = log.cor
 
@@ -218,7 +208,6 @@ def get_data():
 
 @app.route("/api/data", methods=["POST"])
 def save_data():
-    """Versão CORRIGIDA com tratamento de vírgula e suporte a cores"""
     print("🚨 POST /api/data CHAMADO!")
     try:
         data = request.get_json()
@@ -241,12 +230,10 @@ def save_data():
         print(f"📥 RECEBIDO logs para {month}/{year}")
         print(f"📥 Pilotos no payload: {list(logs_recebidos.keys())}")
 
-        # Buscar todos os pilotos de uma vez
         pilotos_nomes = list(logs_recebidos.keys())
         pilotos = Pilot.query.filter(Pilot.name.in_(pilotos_nomes)).all()
         pilotos_dict = {p.name: p for p in pilotos}
         
-        # Buscar todos os logs existentes de uma vez
         logs_existentes = FlightLog.query.filter_by(month=month, year=year).all()
         logs_dict = {}
         for log in logs_existentes:
@@ -257,7 +244,6 @@ def save_data():
         logs_para_atualizar = []
         logs_para_deletar = []
 
-        # PROCESSAR LOGS
         for pilot_name, days in logs_recebidos.items():
             pilot = pilotos_dict.get(pilot_name)
             if not pilot:
@@ -269,17 +255,30 @@ def save_data():
                 key = f"{pilot.id}_{day}"
                 log = logs_dict.get(key)
                 
-                # Busca a cor para este dia/piloto
                 cor_key = f"{pilot_name}_{day}"
                 cor = cores_recebidas.get(cor_key)
                 
-                # Se o valor for None ou vazio, deleta (considera folga)
+                # Célula vazia
                 if hours is None or hours == "":
-                    if log:
+                    if cor:  # tem cor → salva com hours=None
+                        if log:
+                            log.hours = None
+                            log.cor = cor
+                            logs_para_atualizar.append(log)
+                        else:
+                            logs_para_adicionar.append(FlightLog(
+                                pilot_id=pilot.id,
+                                day=day,
+                                month=month,
+                                year=year,
+                                hours=None,
+                                sugestoes={},
+                                cor=cor
+                            ))
+                    elif log:
                         logs_para_deletar.append(log)
                     continue
                 
-                # Converte o valor (incluindo 0.0)
                 valor_horas = converter_para_float(hours)
                 if valor_horas is None:
                     print(f"⚠️ Valor inválido: {pilot_name} dia {day} = {hours}")
@@ -287,11 +286,11 @@ def save_data():
                 
                 if log:
                     log.hours = valor_horas
-                    if cor:
+                    if cor is not None:
                         log.cor = cor
                     logs_para_atualizar.append(log)
                 else:
-                    novo_log = FlightLog(
+                    logs_para_adicionar.append(FlightLog(
                         pilot_id=pilot.id,
                         day=day,
                         month=month,
@@ -299,10 +298,9 @@ def save_data():
                         hours=valor_horas,
                         sugestoes={},
                         cor=cor if cor else None
-                    )
-                    logs_para_adicionar.append(novo_log)
+                    ))
 
-        # PROCESSAR SUGESTÕES
+        # Processar sugestões
         if sugestoes_recebidas:
             mes_nome = getNomeMes(month)
             print(f"📥 Processando {len(sugestoes_recebidas)} sugestões")
@@ -333,18 +331,16 @@ def save_data():
                         log.sugestoes = {}
                     log.sugestoes[key] = True
                 else:
-                    novo_log = FlightLog(
+                    logs_para_adicionar.append(FlightLog(
                         pilot_id=pilot.id,
                         day=dia_key,
                         month=month,
                         year=year,
-                        hours=0.0,
+                        hours=None,          # ← CORRIGIDO (não força 0)
                         sugestoes={key: True},
                         cor=None
-                    )
-                    logs_para_adicionar.append(novo_log)
+                    ))
 
-        # EXECUTAR OPERAÇÕES EM LOTE
         if logs_para_deletar:
             for log in logs_para_deletar:
                 db.session.delete(log)
@@ -389,10 +385,6 @@ def debug_pilots():
         return jsonify([{"id": p.id, "name": p.name, "group": p.group} for p in pilots])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-# ========================
-# 🔧 ROTAS DE TESTE
-# ========================
 
 @app.route("/test-db")
 def test_db():
@@ -484,11 +476,6 @@ def test_supabase():
     except Exception as e:
         return jsonify({"status": "ERRO", "erro": str(e)}), 500
 
-# ========================
-# FIM DAS ROTAS DE TESTE
-# ========================
-
-# === POPULAR BANCO INICIAL ===
 def povoar_dados_iniciais():
     grupos = {
         "Andre": "CESSNA 206/210", "Andrade": "CESSNA 206/210", "Luiz": "CESSNA 206/210",
@@ -535,15 +522,11 @@ def init_db():
 
 init_db()
 
-# ==============================
-# 🔥 INICIALIZAÇÃO FINAL COM TIMEOUT CORRIGIDO
-# ==============================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"✅ Servidor rodando na porta {port} em modo otimizado para Render")
     sys.stdout.flush()
     
-    # Inicialização do SocketIO com parâmetros que evitam timeouts no Render
     socketio.run(
         app, 
         host="0.0.0.0", 
