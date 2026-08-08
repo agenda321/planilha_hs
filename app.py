@@ -10,13 +10,9 @@ from flask_cors import CORS
 from flask_socketio import SocketIO, join_room
 from sqlalchemy import text
 
-print("🚀 Iniciando aplicação...")
-sys.stdout.flush()
-
 app = Flask(__name__)
 CORS(app)
 app.config['TIMEOUT'] = 120
-
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 database_url = os.environ.get("DATABASE_URL")
@@ -84,7 +80,7 @@ class FlightLog(db.Model):
     month = db.Column(db.Integer, nullable=False)
     year = db.Column(db.Integer, nullable=False)
     hours = db.Column(db.Float, nullable=True, default=None)
-    sugestoes = db.Column(db.JSON, nullable=False, default={})
+    sugestoes = db.Column(db.JSON, nullable=False, default=dict)
     cor = db.Column(db.String(20), nullable=True)
     pilot = db.relationship("Pilot", backref=db.backref("flight_logs", lazy=True))
 
@@ -105,18 +101,6 @@ def converter_para_float(valor):
     except ValueError:
         return None
 
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({"erro": "Rota não encontrada"}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify({"erro": "Erro interno do servidor"}), 500
-
-@app.errorhandler(Exception)
-def handle_exception(error):
-    return jsonify({"erro": str(error)}), 500
-
 @app.route("/")
 def landing():
     return redirect("/planilha")
@@ -136,17 +120,7 @@ def on_join_month(data):
         year = int(data.get("year"))
         join_room(sala_do_mes(month, year))
     except Exception as e:
-        print(f"❌ Erro join_month: {e}")
-
-@app.route("/api/login", methods=["POST"])
-def login():
-    try:
-        data = request.get_json()
-        if data.get("password") in [EDIT_PASSWORD, EDIT_PASSWORD_2]:
-            return jsonify({"success": True})
-        return jsonify({"success": False}), 401
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"Erro join_month: {e}")
 
 @app.route("/api/data", methods=["GET"])
 def get_data():
@@ -179,7 +153,6 @@ def get_data():
 
         return jsonify(result)
     except Exception as e:
-        print(f"❌ Erro GET /api/data: {e}")
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
@@ -192,18 +165,13 @@ def save_data():
         if data.get("password") not in [EDIT_PASSWORD, EDIT_PASSWORD_2]:
             return jsonify({"success": False}), 401
 
-        try:
-            month = int(data.get("month"))
-            year = int(data.get("year"))
-        except (ValueError, TypeError):
-            return jsonify({"success": False, "erro": "Mês ou ano inválidos"}), 400
-
+        month = int(data.get("month"))
+        year = int(data.get("year"))
         logs_recebidos = data.get("logs", {})
         sugestoes_recebidas = data.get("sugestoes", {})
         cores_recebidas = data.get("cores", {})
 
-        pilotos_nomes = list(logs_recebidos.keys())
-        pilotos = Pilot.query.filter(Pilot.name.in_(pilotos_nomes)).all()
+        pilotos = Pilot.query.filter(Pilot.name.in_(list(logs_recebidos.keys()))).all()
         pilotos_dict = {p.name: p for p in pilotos}
 
         logs_existentes = FlightLog.query.filter_by(month=month, year=year).all()
@@ -291,28 +259,9 @@ def save_data():
         return jsonify({"success": True})
 
     except Exception as e:
-        print(f"❌ Erro POST /api/data: {e}")
         traceback.print_exc()
         db.session.rollback()
         return jsonify({"success": False, "erro": str(e)}), 500
-
-@app.route("/api/debug/clear-month/<int:month>/<int:year>")
-def clear_month(month, year):
-    try:
-        apagados = FlightLog.query.filter_by(month=month, year=year).delete()
-        db.session.commit()
-        return jsonify({"success": True, "apagados": apagados})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"success": False, "erro": str(e)}), 500
-
-@app.route("/api/debug/pilots")
-def debug_pilots():
-    try:
-        pilots = Pilot.query.all()
-        return jsonify([{"id": p.id, "name": p.name, "group": p.group} for p in pilots])
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 def povoar_dados_iniciais():
     grupos = {
@@ -343,7 +292,7 @@ def init_db():
                     povoar_dados_iniciais()
                 return
         except Exception as e:
-            print(f"⚠️ Tentativa {attempt+1}/5: {e}")
+            print(f"Tentativa {attempt+1}: {e}")
             time.sleep(5)
 
 init_db()
