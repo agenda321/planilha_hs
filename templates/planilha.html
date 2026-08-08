@@ -431,6 +431,37 @@
             font-weight: bold;
         }
 
+        /* ===== CORES ===== */
+        .color-bar {
+            display: none;
+            gap: 6px;
+            padding: 6px 10px;
+            margin: 0 8px 8px;
+            background: #ddcdac;
+            border-radius: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .color-bar.show { display: flex; }
+        .btn-cor {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 2px solid #7a4f2c;
+            cursor: pointer;
+            box-shadow: 0 2px 0 #5a3a1a;
+        }
+        .btn-cor:active { transform: translateY(2px); box-shadow: none; }
+        .btn-cor.limpar {
+            background: #f0ebe0;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #7a4f2c;
+            font-weight: bold;
+        }
+
         @media (max-width: 600px) {
             .cabecalho-skeuo { flex-direction: column; align-items: stretch; }
             .title-area { justify-content: center; }
@@ -472,6 +503,19 @@
                 <span class="sync-status" id="syncStatus">💾 Carregando...</span>
                 <button class="btn-ajuda" id="btnAjuda" title="Legenda">?</button>
             </div>
+        </div>
+
+        <!-- BARRA DE CORES -->
+        <div class="color-bar" id="colorBar">
+            <button class="btn-cor limpar" data-cor="" title="Remover cor">✕</button>
+            <button class="btn-cor" data-cor="#ff6b6b" style="background:#ff6b6b" title="Vermelho"></button>
+            <button class="btn-cor" data-cor="#4ecdc4" style="background:#4ecdc4" title="Verde água"></button>
+            <button class="btn-cor" data-cor="#45b7d1" style="background:#45b7d1" title="Azul"></button>
+            <button class="btn-cor" data-cor="#96ceb4" style="background:#96ceb4" title="Verde"></button>
+            <button class="btn-cor" data-cor="#ffeaa7" style="background:#ffeaa7" title="Amarelo"></button>
+            <button class="btn-cor" data-cor="#dfe6e9" style="background:#dfe6e9" title="Cinza"></button>
+            <button class="btn-cor" data-cor="#a29bfe" style="background:#a29bfe" title="Roxo"></button>
+            <button class="btn-cor" data-cor="#fd79a8" style="background:#fd79a8" title="Rosa"></button>
         </div>
 
         <div class="dias-botoes" id="botoesDias"></div>
@@ -571,6 +615,7 @@ function getGrupo(nome) {
 // ===== DADOS GLOBAIS =====
 let LOGS = {};
 let SUGESTOES_GLOBAIS = {};
+let CORES_GLOBAIS = {};
 
 function getNomeFromRow(row) {
     if (row.dataset && row.dataset.pilot) return row.dataset.pilot;
@@ -584,13 +629,19 @@ function obterChaveSugestao(inp) {
     const pilot = inp.dataset.pilot;
     const dia = inp.dataset.dia;
     const mes = document.getElementById('campoMes').value.trim() || "Julho";
-    return `${mes}_${anoAtual}_${pilot}_${dia}`;
+    return `\( {mes}_ \){anoAtual}_\( {pilot}_ \){dia}`;
 }
 
 // ===== RENDERIZAÇÃO DE ESTILOS E TOTAIS =====
 function atualizarCorInput(inp, sugestoes) {
     const valor = parseHora(inp.value);
     inp.classList.remove('has-value', 'is-zero', 'sugestao');
+
+    // Se tem cor personalizada, ela tem prioridade
+    if (inp.dataset.cor) {
+        inp.style.backgroundColor = inp.dataset.cor;
+        return;
+    }
 
     if (valor === null) {
         const key = obterChaveSugestao(inp);
@@ -641,7 +692,7 @@ function validarStreaks() {
             i++;
         }
         inputs.forEach((inp, idx) => {
-            if (seq[idx]) {
+            if (seq[idx] && !inp.dataset.cor) {
                 inp.classList.add('streak-day');
                 inp.style.backgroundColor = '#ffb366';
             } else {
@@ -698,7 +749,7 @@ function recalcularTudo() {
     const tfoot = document.getElementById('tfootTotal');
     tfoot.innerHTML = '';
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td style="font-weight:bold">🏁 TOTAL GERAL</td>${'<td></td>'.repeat(DIAS)}<td class="total-geral">${formatarHora(soma)}</td>`;
+    tr.innerHTML = `<td style="font-weight:bold">🏁 TOTAL GERAL</td>\( {'<td></td>'.repeat(DIAS)}<td class="total-geral"> \){formatarHora(soma)}</td>`;
     tfoot.appendChild(tr);
     validarStreaks();
     atualizarTotaisBotoesDias();
@@ -726,6 +777,41 @@ function atualizarTotaisBotoesDias() {
     });
 }
 
+// ===== CORES =====
+function aplicarCor(cor) {
+    if (diaEditandoIndex === null) return;
+
+    const focused = document.activeElement;
+    if (focused && focused.classList.contains('input-hora') && !focused.disabled) {
+        // Aplica só na célula focada
+        if (cor) {
+            focused.dataset.cor = cor;
+            focused.style.backgroundColor = cor;
+        } else {
+            delete focused.dataset.cor;
+            atualizarCorInput(focused, SUGESTOES_GLOBAIS);
+        }
+    } else {
+        // Aplica em todas as células vazias do dia
+        document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
+            const inp = row.cells[diaEditandoIndex + 1]?.querySelector('.input-hora');
+            if (!inp) return;
+            const valor = parseHora(inp.value);
+            if (valor === null) {
+                if (cor) {
+                    inp.dataset.cor = cor;
+                    inp.style.backgroundColor = cor;
+                } else {
+                    delete inp.dataset.cor;
+                    atualizarCorInput(inp, SUGESTOES_GLOBAIS);
+                }
+            }
+        });
+    }
+    salvarNoBackend();
+    showToast(cor ? '🎨 Cor aplicada' : '🗑️ Cor removida');
+}
+
 // ===== MODO EDIÇÃO =====
 function ativarEdicaoDia(diaIndex) {
     if (!isEditing) {
@@ -750,6 +836,7 @@ function ativarEdicaoDia(diaIndex) {
     document.querySelectorAll('.btn-dia').forEach((btn, i) => btn.classList.toggle('dia-editando', i === diaIndex));
     document.getElementById('btnSairDia').style.display = 'inline-block';
     document.getElementById('btnPreencherVazios').style.display = 'inline-block';
+    document.getElementById('colorBar').classList.add('show');
     showToast(`✏️ Editando dia ${String(diaIndex + 1).padStart(2,'00')}`);
 }
 
@@ -762,6 +849,7 @@ function sairEdicaoDia() {
         diaEditandoIndex = null;
         document.getElementById('btnSairDia').style.display = 'none';
         document.getElementById('btnPreencherVazios').style.display = 'none';
+        document.getElementById('colorBar').classList.remove('show');
         showToast('🔓 Edição geral restaurada');
     }
 }
@@ -776,7 +864,7 @@ function preencherVazios() {
         const valor = parseHora(inp.value);
         if (valor === null) {
             inp.classList.add('sugestao');
-            inp.style.backgroundColor = '#d4edda';
+            if (!inp.dataset.cor) inp.style.backgroundColor = '#d4edda';
             const key = obterChaveSugestao(inp);
             SUGESTOES_GLOBAIS[key] = true;
             count++;
@@ -846,7 +934,7 @@ function bloquear() {
     password = "";
 }
 
-// ===== BACKEND (API) - CORRIGIDO =====
+// ===== BACKEND (API) =====
 async function salvarNoBackend() {
     if (!isEditing || isSaving) return;
     isSaving = true;
@@ -859,6 +947,7 @@ async function salvarNoBackend() {
             const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
             const month = getMesNumero(mesNome);
             const logs = {};
+            const cores = {};
 
             document.querySelectorAll('#tabelaHoras tbody tr.membro-row').forEach(row => {
                 const nome = getNomeFromRow(row);
@@ -866,8 +955,11 @@ async function salvarNoBackend() {
                 row.querySelectorAll('.input-hora').forEach((inp, i) => {
                     const day = i + 1;
                     const v = parseHora(inp.value);
-                    // ✅ FIX: Salvar 0 como 0, não como null
                     logs[nome][day] = v;
+
+                    if (inp.dataset.cor) {
+                        cores[`\( {nome}_ \){day}`] = inp.dataset.cor;
+                    }
                 });
             });
 
@@ -877,20 +969,22 @@ async function salvarNoBackend() {
                 sugestoes[key] = true;
             });
             SUGESTOES_GLOBAIS = sugestoes;
+            CORES_GLOBAIS = cores;
 
             const payload = {
                 password,
                 logs,
                 month,
                 year: anoAtual,
-                sugestoes: sugestoes
+                sugestoes: sugestoes,
+                cores: cores
             };
 
             const resp = await fetch('/api/data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
-                signal: AbortSignal.timeout(15000) // Aumentei o timeout para 15 segundos
+                signal: AbortSignal.timeout(15000)
             });
 
             const respData = await resp.json();
@@ -906,7 +1000,7 @@ async function salvarNoBackend() {
             saveRetries++;
             
             if (saveRetries < MAX_RETRIES) {
-                syncSpan.innerHTML = `⏳ Retry ${saveRetries}/${MAX_RETRIES}...`;
+                syncSpan.innerHTML = `⏳ Retry \( {saveRetries}/ \){MAX_RETRIES}...`;
                 setTimeout(tentarSalvar, 2000);
             } else {
                 syncSpan.innerHTML = '❌ Erro ao salvar';
@@ -925,7 +1019,7 @@ async function carregarDoBackend() {
     try {
         const mesNome = document.getElementById('campoMes').value.trim() || "Julho";
         const mesNum = getMesNumero(mesNome);
-        const url = `/api/data?month=${mesNum}&year=${anoAtual}`;
+        const url = `/api/data?month=\( {mesNum}&year= \){anoAtual}`;
         const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -933,6 +1027,7 @@ async function carregarDoBackend() {
 
         LOGS = data.logs || {};
         SUGESTOES_GLOBAIS = data.sugestoes || {};
+        CORES_GLOBAIS = data.cores || {};
         
         atualizarDias();
 
@@ -996,7 +1091,7 @@ async function carregarDoBackend() {
                     inp.dataset.pilot = p.name;
                     inp.dataset.dia = i + 1;
 
-                    // ✅ FIX: Carregar valores corretamente, incluindo 0
+                    // Carregar valor
                     const valorSalvo = (LOGS[p.name] && LOGS[p.name][i+1] !== undefined) ? LOGS[p.name][i+1] : null;
                     if (valorSalvo === 0) {
                         inp.value = '0';
@@ -1005,17 +1100,26 @@ async function carregarDoBackend() {
                     } else {
                         inp.value = '';
                     }
+
+                    // Carregar cor personalizada
+                    const corSalva = CORES_GLOBAIS[p.name]?.[i+1];
+                    if (corSalva) {
+                        inp.dataset.cor = corSalva;
+                        inp.style.backgroundColor = corSalva;
+                    }
                     
                     atualizarCorInput(inp, SUGESTOES_GLOBAIS);
                     inp.disabled = true;
 
-                    // ===== EVENTOS CORRIGIDOS =====
+                    // Eventos
                     inp.addEventListener('input', function() {
                         if (!isEditing || diaEditandoIndex !== i) return;
                         this.classList.remove('saving');
                         this.classList.remove('sugestao');
                         const key = obterChaveSugestao(this);
                         delete SUGESTOES_GLOBAIS[key];
+                        // Se digitou valor, remove cor personalizada (opcional)
+                        // delete this.dataset.cor;
                         atualizarTotalLinha(row);
                         recalcularTudo();
                     });
@@ -1096,7 +1200,7 @@ function criarBotoesDias() {
     atualizarTotaisBotoesDias();
 }
 
-// ===== MODAIS (RANKING E AJUDA) =====
+// ===== MODAIS =====
 function mostrarRanking() {
     const mesAtual = document.getElementById('campoMes').value.trim() || "Julho";
     const pilotos = [];
@@ -1136,7 +1240,7 @@ function mostrarRanking() {
             html += `<li style="padding:6px 8px;border-bottom:1px solid #e8d5b0;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                     <span><strong>${p.nome}</strong></span>
-                    <strong style="color:${p.total>0?'#2a8a2a':'#aaa'}">${p.total === 0 ? '—' : formatarHora(p.total)+'h'}</strong>
+                    <strong style="color:\( {p.total>0?'#2a8a2a':'#aaa'}"> \){p.total === 0 ? '—' : formatarHora(p.total)+'h'}</strong>
                 </div>
                 <div class="progress-bar-wrap"><div class="barra-fill" style="width:${perc}%"></div></div>
             </li>`;
@@ -1163,9 +1267,9 @@ function mostrarAjuda() {
     ];
     let html = `<div class="card-ajuda"><h3 style="text-align:center;">📖 Legenda</h3>`;
     itens.forEach(item => {
-        html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:${item.cor};border:1px solid #999;font-size:0.7rem;">&nbsp;</div><span>${item.texto}</span></div>`;
+        html += `<div class="ajuda-item"><div class="ajuda-cor" style="background:\( {item.cor};border:1px solid #999;font-size:0.7rem;">&nbsp;</div><span> \){item.texto}</span></div>`;
     });
-    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">🔐 Desbloqueie com a senha, depois clique em um dia para editar apenas aquela coluna.<br>✅ Salvamento automático ao sair do campo.<br>0️⃣ Digite "0" para marcar dia trabalhado sem horas (não conta como folga).<br>🎨 Use "PREENCHER VAZIOS" para destacar células vazias em verde (persistente e sincronizado).</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
+    html += `<hr><p style="font-size:0.8rem;color:#7a5000;text-align:center;">🔐 Desbloqueie com a senha, depois clique em um dia para editar apenas aquela coluna.<br>✅ Salvamento automático ao sair do campo.<br>0️⃣ Digite "0" para marcar dia trabalhado sem horas (não conta como folga).<br>🎨 Use a barra de cores para marcar células vazias com cores persistentes.</p><button class="btn-fechar" id="fecharAjuda">Fechar</button></div>`;
     const modal = document.createElement('div');
     modal.className = 'modal-ajuda';
     modal.innerHTML = html;
@@ -1206,6 +1310,14 @@ document.getElementById('btnPreencherVazios').onclick = preencherVazios;
 document.getElementById('btnRanking').onclick = mostrarRanking;
 document.getElementById('btnAjuda').onclick = mostrarAjuda;
 
+// Eventos da barra de cores
+document.querySelectorAll('.btn-cor').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const cor = btn.dataset.cor;
+        aplicarCor(cor || null);
+    });
+});
+
 // ===== INICIALIZAÇÃO =====
 const dadosStorage = obterMesAno();
 const dataAtual = new Date();
@@ -1218,7 +1330,7 @@ if (dadosStorage) {
 }
 carregarDoBackend();
 
-// ===== SOCKET.IO (REAL-TIME) =====
+// ===== SOCKET.IO =====
 let socket = null;
 function iniciarSocket() {
     if (typeof io === 'undefined' || socket) return;
