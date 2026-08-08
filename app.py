@@ -15,6 +15,7 @@ CORS(app)
 app.config['TIMEOUT'] = 120
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
+# === CONFIGURAÇÃO DO BANCO ===
 database_url = os.environ.get("DATABASE_URL")
 if not database_url:
     database_url = "sqlite:///test.db"
@@ -65,6 +66,7 @@ EDIT_PASSWORD = os.environ.get("EDIT_PASSWORD", "Emerson")
 EDIT_PASSWORD_2 = os.environ.get("EDIT_PASSWORD_2", "Bispo")
 PILOTOS_EXCLUIDOS = []
 
+# === MODELOS ===
 class Pilot(db.Model):
     __tablename__ = "pilot"
     id = db.Column(db.Integer, primary_key=True)
@@ -84,6 +86,7 @@ class FlightLog(db.Model):
     cor = db.Column(db.String(20), nullable=True)
     pilot = db.relationship("Pilot", backref=db.backref("flight_logs", lazy=True))
 
+# === FUNÇÕES AUXILIARES ===
 def getNomeMes(num):
     meses = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"]
     return meses[num-1] if 1 <= num <= 12 else "Julho"
@@ -101,6 +104,7 @@ def converter_para_float(valor):
     except ValueError:
         return None
 
+# === ROTAS ===
 @app.route("/")
 def landing():
     return redirect("/planilha")
@@ -205,7 +209,12 @@ def save_data():
                             ))
                     else:
                         if log:
-                            logs_para_deletar.append(log)
+                            # 🔥 CORREÇÃO: Se a cor não veio, forçamos o banco a apagar a cor
+                            if log.cor:
+                                log.cor = None
+                                logs_para_atualizar.append(log)
+                            else:
+                                logs_para_deletar.append(log)
                     continue
 
                 valor_horas = converter_para_float(hours)
@@ -214,8 +223,8 @@ def save_data():
 
                 if log:
                     log.hours = valor_horas
-                    if cor is not None:
-                        log.cor = cor
+                    # 🔥 CORREÇÃO: Atualiza a cor mesmo que venha vazia (None), para limpar
+                    log.cor = cor
                     logs_para_atualizar.append(log)
                 else:
                     logs_para_adicionar.append(FlightLog(
