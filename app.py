@@ -226,13 +226,12 @@ def save_data():
         if data.get("password") not in [EDIT_PASSWORD, EDIT_PASSWORD_2]:
             return jsonify({"success": False}), 401
 
-        month = data.get("month")
-        year = data.get("year")
-        if not month or not year:
-            return jsonify({"success": False, "erro": "Mês e ano são obrigatórios"}), 400
-
-        month = int(month)
-        year = int(year)
+        # Validação extra para evitar que mês/ano nulos quebrem a aplicação
+        try:
+            month = int(data.get("month"))
+            year = int(data.get("year"))
+        except (ValueError, TypeError):
+            return jsonify({"success": False, "erro": "Mês ou ano inválidos"}), 400
 
         logs_recebidos = data.get("logs", {})
         sugestoes_recebidas = data.get("sugestoes", {})
@@ -273,12 +272,13 @@ def save_data():
                 cor_key = f"{pilot_name}_{day}"
                 cor = cores_recebidas.get(cor_key)
                 
-                # ===== CORREÇÃO: Usa a função de conversão =====
+                # Se o valor for None ou vazio, deleta (considera folga)
                 if hours is None or hours == "":
                     if log:
                         logs_para_deletar.append(log)
                     continue
                 
+                # Converte o valor (incluindo 0.0) usando a função robusta
                 valor_horas = converter_para_float(hours)
                 if valor_horas is None:
                     print(f"⚠️ Valor inválido: {pilot_name} dia {day} = {hours}")
